@@ -11,7 +11,7 @@ def configure():
     flags.DEFINE_integer("batch_size", 10, "batch size")
     flags.DEFINE_integer("updates_per_epoch", 500, "number of updates per epoch")
     flags.DEFINE_integer("max_epoch", 150, "max epoch for first step training")
-    flags.DEFINE_integer("max_epoch", 300, "max epoch for conditional part training")
+    flags.DEFINE_integer("max_con_epoch", 300, "max epoch for conditional part training")
     flags.DEFINE_integer("max_test_epoch", 100, "max  test epoch")
     flags.DEFINE_integer("summary_step", 100, "save summary per #summary_step iters")
     flags.DEFINE_integer("save_step", 100, "save model per #save_step iters")
@@ -51,7 +51,7 @@ def main(_):
         getattr(model,args.action)()
 
 if __name__ == "__main__":
-    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+    os.environ['CUDA_VISIBLE_DEVICES'] = '1'
     tf.app.run()
 
 

@@ -21,12 +21,10 @@ def lrelu(x, leak=0.2, name="lrelu"):
         return f1 * x + f2 * abs(x)
 
 def add_white_noise(input_tensor, mean=0, stddev=0.01):
-    noise = tf.random_normal(shape= tf.shape(input_tensor), mean, stddev, dtype=tf.float32)
+    noise = tf.random_normal(shape= tf.shape(input_tensor), mean= mean, stddev =stddev, dtype=tf.float32)
     return input_tensor+noise 
 
-def encoder_all(input_tensor, reuse=False):
-    if reuse:
-        scope.reuse_variables()     
+def encoder_all(input_tensor):  
     output = tf.contrib.layers.conv2d(
         input_tensor, 64, conv_size, scope='convlayer1', stride =2, padding='SAME',
         activation_fn=prelu, normalizer_fn=tf.contrib.layers.batch_norm,
@@ -76,43 +74,49 @@ def encoder_x_r_s(input_tensor, output_size_r, nclass, output_size_s):
         normalizer_params={'scale': True})
     return output_y, output_s, output_r
 
-def decoder_all(input_sensor, chan_out, reuse=False):
-    if reuse:
-        scope.reuse_variables()    
-    output = tf.expand_dims(input_sensor ,1)
-    output = tf.expand_dims(output,1)
-    output = tf.contrib.layers.fully_connected(ouput,1024*4*4, activation_fn=None)
+def decoder_all(input_sensor, chan_out):
+ #   output = tf.expand_dims(input_sensor ,1)
+#    output = tf.expand_dims(output,1)
+    output = tf.contrib.layers.fully_connected(input_sensor,1024*4*4, activation_fn=None)
+    print(output.get_shape())
     output = tf.reshape(output,[-1,1024,4,4])
+    output = tf.transpose(output, perm=[0, 2, 3 ,1])
+    print(output.get_shape())
     output = prelu(output)
+    print(output.get_shape())
     output = tf.contrib.layers.conv2d_transpose(    
         output, 1024, deconv_size, scope='deconv1', stride = 2, padding='SAME',
         activation_fn=prelu, normalizer_fn=tf.contrib.layers.batch_norm, 
         normalizer_params={'scale': True})
+    print(output.get_shape())
     output = tf.contrib.layers.conv2d_transpose(
         output, 512, deconv_size, scope='deconv2', stride = 2, padding='SAME',
         activation_fn=prelu, normalizer_fn=tf.contrib.layers.batch_norm, 
         normalizer_params={'scale': True})
+    print(output.get_shape())
     output = tf.contrib.layers.conv2d_transpose(
         output, 256, deconv_size, scope='deconv3', stride = 2, padding='SAME',
         activation_fn=prelu, normalizer_fn=tf.contrib.layers.batch_norm, 
         normalizer_params={'scale': True})
+    print(output.get_shape())
     output = tf.contrib.layers.conv2d_transpose(
         output, 128, deconv_size, scope='deconv4', stride = 2, padding='SAME',
         activation_fn=prelu, normalizer_fn=tf.contrib.layers.batch_norm, 
         normalizer_params={'scale': True})
+    print(output.get_shape())
     output = tf.contrib.layers.conv2d_transpose(
         output, 64, deconv_size, scope='deconv5', stride=2, padding='SAME',
         activation_fn=prelu, normalizer_fn=tf.contrib.layers.batch_norm, 
         normalizer_params={'scale': True})
+    print(output.get_shape())
     output = tf.contrib.layers.conv2d_transpose(
         output, chan_out, deconv_size, scope='deconv6', stride=2, padding='SAME',
         activation_fn=tf.nn.sigmoid, normalizer_fn=tf.contrib.layers.batch_norm, 
-        normalizer_params={'scale': True})    
+        normalizer_params={'scale': True})   
+    print(output.get_shape()) 
     return output
 
-def createAdversary(input_tensor, reuse= False):
-    if reuse:
-        scope.reuse_variables()        
+def createAdversary(input_tensor):        
     output = tf.contrib.layers.fully_connected(input_tensor, 1024, scope='full1',
         activation_fn=lrelu)
     output = tf.contrib.layers.fully_connected(output, 1024, scope='full2',
@@ -127,9 +131,7 @@ def createAdversary(input_tensor, reuse= False):
     return output
 
 
-def createAdversary_Dec(input_tensor, gan_noise=0.01, noise_bool=False, reuse=False):
-    if reuse:
-        scope.reuse_variables()    
+def createAdversary_Dec(input_tensor, gan_noise=0.01, noise_bool=False):
     if gan_noise > 0:
         input_tensor = add_white_noise(input_tensor)
     output = tf.contrib.layers.conv2d(
@@ -163,17 +165,13 @@ def createAdversary_Dec(input_tensor, gan_noise=0.01, noise_bool=False, reuse=Fa
         output=add_white_noise(output)
     return output
 
-def Adv_dec_x_r(input_tensor, reuse=False):
-    if reuse:
-        scope.reuse_variables()  
+def Adv_dec_x_r(input_tensor):
     output= tf.contrib.layers.flatten(input_tensor)
     output = tf.contrib.layers.fully_connected(output, 1, scope='decd_r_full1',
         activation_fn=tf.nn.sigmoid)
     return output
 
-def Adv_dec_x_r_s(input_tensor, nclass, reuse=False):
-    if reuse:
-        scope.reuse_variables()
+def Adv_dec_x_r_s(input_tensor, nclass):
     output = tf.contrib.layers.flatten(input_tensor)
     output = tf.contrib.layers.fully_connected(output, nclass+1, scope='decd_rs_full1',
         activation_fn=tf.nn.log_softmax)

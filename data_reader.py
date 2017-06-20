@@ -13,6 +13,7 @@ class data_reader:
         self.label_test = self.data['Y'][5000:, :]
         self.train_idx = 0
         self.test_idx = 0
+        print("DATA successfully loaded!!!!!!!!!========================")
 
     def next_batch(self, batch_size):
         prev_idx = self.train_idx
