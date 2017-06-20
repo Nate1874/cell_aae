@@ -54,9 +54,8 @@ def encoder_all(input_tensor):
     return output
 
 
-def encoder_x_r(input_tensor, output_size, reuse=False):
-    if reuse:
-        scope.reuse_variables()
+def encoder_x_r(input_tensor, output_size):
+    
     output = tf.contrib.layers.fully_connected(input_tensor, output_size, activation_fn=None,
         normalizer_fn=tf.contrib.layers.batch_norm, normalizer_params={'scale': True})
  #   output = tf.contrib.layers.dropout(output, 0.9, scope='dropout1')
@@ -111,14 +110,13 @@ def decoder_all(input_sensor, chan_out):
     print(output.get_shape())
     output = tf.contrib.layers.conv2d_transpose(
         output, chan_out, deconv_size, scope='deconv6', stride=2, padding='SAME',
-        activation_fn=tf.nn.sigmoid, normalizer_fn=tf.contrib.layers.batch_norm, 
-        normalizer_params={'scale': True})   
+        activation_fn=tf.nn.tanh, normalizer_fn=None)
     print(output.get_shape()) 
     return output
 
 def createAdversary(input_tensor):        
     output = tf.contrib.layers.fully_connected(input_tensor, 1024, scope='full1',
-        activation_fn=lrelu)
+        activation_fn=lrelu) 
     output = tf.contrib.layers.fully_connected(output, 1024, scope='full2',
         activation_fn=lrelu, normalizer_fn=tf.contrib.layers.batch_norm,
         normalizer_params={'scale': True})
@@ -126,7 +124,7 @@ def createAdversary(input_tensor):
         activation_fn=lrelu, normalizer_fn=tf.contrib.layers.batch_norm,
         normalizer_params={'scale': True})
     output = tf.contrib.layers.fully_connected(output, 1, scope='full4',
-        activation_fn=tf.nn.sigmoid, normalizer_fn=tf.contrib.layers.batch_norm,
+        activation_fn=None, normalizer_fn=tf.contrib.layers.batch_norm,
         normalizer_params={'scale': True})
     return output
 
@@ -168,7 +166,7 @@ def createAdversary_Dec(input_tensor, gan_noise=0.01, noise_bool=False):
 def Adv_dec_x_r(input_tensor):
     output= tf.contrib.layers.flatten(input_tensor)
     output = tf.contrib.layers.fully_connected(output, 1, scope='decd_r_full1',
-        activation_fn=tf.nn.sigmoid)
+        activation_fn=None)
     return output
 
 def Adv_dec_x_r_s(input_tensor, nclass):

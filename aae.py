@@ -135,24 +135,25 @@ class AAE(object):
         iterations = 1
     #    epoch = 0
         for epoch in range(self.conf.max_epoch):
-            pbar = ProgressBar()
-            for i in pbar(range(self.conf.updates_per_epoch)):            
+        #    pbar = ProgressBar()
+            for i in range(self.conf.updates_per_epoch):            
                 inputs, labels= data.next_batch(self.conf.batch_size)
                 inputs_only_r = data.extract(inputs)
             #    sampled_zr = tf.random_normal([self.conf.batch_size,self.conf.hidden_size])
                 sampled_zr = np.random.normal(size= (self.conf.batch_size,self.conf.hidden_size))
                 feed_dict= {self.input_r:inputs_only_r, self.sampled_z_r: sampled_zr}
                 _, decd_r_loss, = self.sess.run([self.train_decd_r, self.decdr_loss], feed_dict= feed_dict)
-                _, encd_r_loss, = self.sess.run([self.train_encd_r, self.encdr_loss], feed_dict= feed_dict) 
+                _, encd_r_loss, = self.sess.run([self.train_encd_r, self.encdr_loss], feed_dict= feed_dict)
                 _, enc_r_loss = self.sess.run([self.train_enc_r, self.encr_loss], feed_dict =  feed_dict)
-                _, dec_r_loss, summary = self.sess.run([self.train_dec_r, self.decr_loss, self.train_summary], feed_dict = feed_dict)
+                loss, _, dec_r_loss, summary = self.sess.run([self.decdr_loss_dec, self.train_dec_r, self.decr_loss, self.train_summary], feed_dict = feed_dict)
+                print("loss is ==================", loss)
                 if iterations %self.conf.summary_step == 1:
                     self.save_summary(summary, iterations+self.conf.checkpoint)
                 if iterations %self.conf.save_step == 0:
                     self.save(iterations+self.conf.checkpoint)
                 iterations = iterations + 1
-            print("decd_r_loss is =============", decd_r_loss)
-            print("encd_r_loss is  ==============", encd_r_loss)
+            
+            
             print("enc_r_loss is  ================", enc_r_loss)
             print("dec_r_loss is =====================",dec_r_loss)            
             self.generate_and_save()
@@ -165,8 +166,8 @@ class AAE(object):
                     os.makedirs(imgs_folder)      
                 res= np.zeros([imgs.shape[1],imgs.shape[2],3])         
                 res[:,:,0]=imgs[k,:,:,0]
-                res[:,:,1]= 0
-                res[:,:,2]=imgs[k,:,:,1]
+                res[:,:,1]= -1
+                res[:,:,2]=imgs[k,:,:,1]                
                 imsave(os.path.join(imgs_folder,'%d.png') % k,
                     res)
                 imsave(os.path.join(imgs_folder,'%d_ch0.png') % k,
@@ -216,12 +217,6 @@ class AAE(object):
         # print("sigma: ", sigma)
         # print("ll: %d" % (np.mean(nlls)))
         # print("se: %d" % (nlls.std() / np.sqrt(10000)))
-
-
-    def update_params(self, input_tensor, step):
-        loss, summary, kl_loss, rec_loss =  self.sess.run([self.train, self.train_summary, self.kl_loss, self.rec_loss], {self.input_tensor: input_tensor})
-        self.writer.add_summary(summary, step)
-        return loss, kl_loss, rec_loss
 
     def reload(self, epoch):
         checkpoint_path = os.path.join(
