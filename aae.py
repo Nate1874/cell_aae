@@ -18,7 +18,6 @@ class AAE(object):
         self.sess = sess
         self.chan_out_r = 2
         self.chan_out_r_s =3
-        self.input_sr = tf.placeholder(tf.float32,[None, self.conf.height, self.conf.width, 3])
         if not os.path.exists(self.conf.modeldir):
             os.makedirs(self.conf.modeldir)
         if not os.path.exists(self.conf.logdir):
@@ -32,11 +31,17 @@ class AAE(object):
     def configure_networks(self):
         self.build_network()
         variables = tf.trainable_variables()
+        #variables for the first autoencoder
         self.var_enc_r = [var for var in variables if var.name.startswith('ENC_R')]
         self.var_encd_r = [var for var in variables if var.name.startswith('ENCD_R')]
         self.var_dec_r = [var for var in variables if var.name.startswith('DEC_R')]
         self.var_decd_r = [var for var in variables if var.name.startswith('DECD_R')]
-        # TO DO : add variables for bottom part
+        #variables for the conditional autoencoder
+        self.var_enc_r_s = [var for var in variables if var.name.startswith('ENC_R_S')]
+        self.var_encd_r_s = [var for var in variables if var.name.startswith('ENCD_R_S')]
+        self.var_dec_r_s = [var for var in variables if var.name.startswith('DEC_R_S')]
+        self.var_decd_r_s = [var for var in variables if var.name.startswith('DECD_R_S')]
+        # opt for the first autoencoder
         self.train_decd_r = tf.contrib.layers.optimize_loss(self.decdr_loss, tf.contrib.framework.get_or_create_global_step(), 
             learning_rate=self.conf.learning_rate, optimizer='Adam', variables=self.var_decd_r, update_ops=[])
         self.train_encd_r = tf.contrib.layers.optimize_loss(self.encdr_loss, tf.contrib.framework.get_or_create_global_step(), 
@@ -45,16 +50,35 @@ class AAE(object):
             learning_rate=self.conf.learning_rate, optimizer='Adam', variables=self.var_enc_r, update_ops=[])
         self.train_dec_r = tf.contrib.layers.optimize_loss(self.decr_loss, tf.contrib.framework.get_or_create_global_step(), 
             learning_rate=self.conf.learning_rate, optimizer='Adam', variables=self.var_dec_r, update_ops=[])
+        # opt for the con autoencoder
+        self.train_decd_r_s = tf.contrib.layers.optimize_loss(self.decdr_s_loss, tf.contrib.framework.get_or_create_global_step(), 
+            learning_rate=self.conf.learning_rate, optimizer='Adam', variables=self.var_decd_r_s, update_ops=[])
+        self.train_encd_r_s = tf.contrib.layers.optimize_loss(self.encdr_s_loss, tf.contrib.framework.get_or_create_global_step(), 
+            learning_rate=self.conf.learning_rate, optimizer='Adam', variables=self.var_encd_r_s, update_ops=[])
+
+        self.train_enc_r_s = tf.contrib.layers.optimize_loss(self.encr_s_loss, tf.contrib.framework.get_or_create_global_step(), 
+            learning_rate=self.conf.learning_rate, optimizer='Adam', variables=self.var_enc_r_s, update_ops=[])
+        self.train_dec_r_s = tf.contrib.layers.optimize_loss(self.decr_s_loss, tf.contrib.framework.get_or_create_global_step(), 
+            learning_rate=self.conf.learning_rate, optimizer='Adam', variables=self.var_dec_r_s, update_ops=[])
+    
   #      self.sess = tf.Session()
         self.sess.run(tf.global_variables_initializer())
         trainable_vars = tf.trainable_variables()
         self.saver = tf.train.Saver(var_list=trainable_vars, max_to_keep=0)
         self.writer = tf.summary.FileWriter(self.conf.logdir, self.sess.graph)
         self.train_summary = self.config_summary()
+        self.train_con_summary =self.config_con_summary()
 
     def build_network(self):
+
+
+        #build the first autoencoder
         self.input_r = tf.placeholder(tf.float32,[None, self.conf.height, self.conf.width, 2])
         self.sampled_z_r = tf.placeholder(tf.float32,[None, self.conf.hidden_size])
+        self.input_r_s = tf.placeholder(tf.float32,[None, self.conf.height, self.conf.width, 3])
+        self.sampled_z_s = tf.placeholder(tf.float32,[None, self.conf.hidden_size])
+        self.input_y = tf.placeholder(tf.int32,[None,self.conf.n_class])
+        self.input_extracted = tf.placeholder(tf.float32,[None, self.conf.height, self.conf.width, 2])
     #    self.sampled_x_r = tf.placeholder(tf.float32,[None, self.height, self.width, 2])
         with tf.variable_scope('ENC_R') as scope:
             intermediate_out_r = encoder_all(self.input_r)
@@ -89,34 +113,124 @@ class AAE(object):
         with tf.variable_scope('DEC_R', reuse= True) as scope:
             self.generated_out= decoder_all(generated_latent, self.chan_out_r)
 
-
+        # the loss for the top autoencoder
         self.decdr_loss = self.get_bce_loss(self.d_dec_out_p, tf.ones_like(self.d_dec_out_p)) + self.get_bce_loss(self.d_dec_out_n, tf.zeros_like(self.d_dec_out_n))
         self.encdr_loss = self.get_bce_loss(self.d_enc_out_p, tf.ones_like(self.d_enc_out_n)) + self.get_bce_loss(self.d_enc_out_n,  tf.zeros_like(self.d_enc_out_p))
         self.rec_loss = self.get_bce_loss(self.out_x_r, self.input_r)
         self.encdr_loss_enc = self.get_bce_loss(self.d_enc_out_n, tf.ones_like(self.d_enc_out_n))
         self.decdr_loss_dec = self.get_bce_loss(self.d_dec_out_n, tf.ones_like(self.d_dec_out_n)) + self.get_bce_loss(self.d_dec_out_rec, tf.ones_like(self.d_dec_out_rec))
-
         self.encr_loss = self.rec_loss + self.conf.gamma_enc*self.encdr_loss_enc
         self.decr_loss = self.rec_loss + self.conf.gamma_dec*self.decdr_loss_dec
+        print("finish building the first autoencoder===========Now the conditional one")
+        #build the conditional auto encoder
+        with tf.variable_scope('ENC_R_S') as scope:
+            intermediate_out_r_s = encoder_all(self.input_r_s)
+            self.latent_y, self.latent_s, self.latent_z_rs = encoder_x_r_s(intermediate_out_r_s, 
+                self.conf.hidden_size, self.conf.n_class, self.conf.hidden_size)
+
+        with tf.variable_scope('DEC_R_S') as scope:
+            dec_input = tf.concat([self.latent_z_rs, self.latent_y, self.latent_s], 1)
+            self.out_x_r_s = decoder_all(dec_input, self.chan_out_r_s) #x_r_s_head, reconstrcuted image
+            scope.reuse_variables()
+            dec_inpt_gen = tf.concat([self.latent_z_rs, self.latent_y, self.sampled_z_s],1)
+            self.out_x_rs_gen = decoder_all(dec_inpt_gen, self.chan_out_r_s) # dec output using randomed z_s
+        
+        with tf.variable_scope('ENCD_R_S') as scope:
+            self.d_encds_out_p = createAdversary(self.sampled_z_s) #positive samples. V_gen_encds
+            scope.reuse_variables()
+            self.d_encds_out_n = createAdversary(self.latent_s)# negative smaples, v_obs_encds
+        with tf.variable_scope('DECD_R_S') as scope:
+            output1_con = createAdversary_Dec(self.input_r_s)
+            self.d_decds_out_p = Adv_dec_x_r_s(output1_con, self.conf.n_class) # positive, Y_obs, original images
+            scope.reuse_variables()
+            output2_con = createAdversary_Dec(self.out_x_rs_gen)
+            self.d_decds_out_n =Adv_dec_x_r_s(output2_con, self.conf.n_class) #negative, Y_gen
+            output3_con = createAdversary_Dec(self.out_x_r_s)
+            self.d_decds_out_recon = Adv_dec_x_r_s(output3_con, self.conf.n_class)
+        
+        with tf.variable_scope('ENC_R', reuse= True) as scope:
+            inter_out_con = encoder_all(self.input_extracted)
+            self.z_r_con = encoder_x_r(inter_out_con, self.conf.hidden_size)
+            
+        generated_latent_s = tf.random_normal([self.conf.batch_size,self.conf.hidden_size])
+        generated_latent_r = tf.random_normal([self.conf.batch_size,self.conf.hidden_size])
+        self.generated_y = tf.placeholder(tf.float32,[None,self.conf.n_class])
+        gen_input_con= tf.concat([generated_latent_r,self.generated_y, generated_latent_s],1)
+        with tf.variable_scope('DEC_R_S', reuse= True) as scope:
+            self.generate_con_out = decoder_all(gen_input_con, self.chan_out_r_s)
+
+        # the loss for the conditional auto encoder
+        self.encdr_s_loss = self.get_bce_loss(self.d_encds_out_p, tf.ones_like(self.d_encds_out_p))+ \
+            self.get_bce_loss(self.d_encds_out_n, tf.zeros_like(self.d_encds_out_n))
+        self.y_head = tf.concat([self.input_y, tf.zeros([self.conf.batch_size, 1], tf.int32)],1)
+        self.y_gen = tf.concat([tf.zeros([self.conf.batch_size, self.conf.n_class], tf.int32), 
+            tf.ones([self.conf.batch_size, 1], tf.int32)], 1)
+        self.decdr_s_loss = self.get_log_softmax(self.d_decds_out_p, self.y_head)+ \
+            self.get_log_softmax(self.d_decds_out_n, self.y_gen)
+        self.rec_loss_rs = self.get_bce_loss(self.out_x_r_s, self.input_r_s)
+        self.y_loss = self.get_log_softmax(self.latent_y, self.input_y)
+        print("===============================")
+        print(self.y_loss.get_shape())
+        self.zr_loss = self.get_mse_loss(self.latent_z_rs, self.z_r_con)  #MSE error
+        print(self.zr_loss.get_shape())
+        self.encds_loss_enc = self.get_bce_loss(self.d_encds_out_n, tf.ones_like(self.d_encds_out_n))
+        self.decdrs_loss_dec = self.get_log_softmax(self.d_decds_out_n, self.y_head) + \
+            self.get_log_softmax(self.d_decds_out_recon, self.y_head)        
+        self.encr_s_loss = self.rec_loss_rs+ self.zr_loss+ self.y_loss+ self.conf.gamma_enc*self.encds_loss_enc
+        self.decr_s_loss = self.rec_loss_rs + self.conf.gamma_dec* self.decdr_loss_dec
+
+        # build the model for the final conditional generation
+        
+        self.test_input = tf.placeholder(tf.float32,[None, self.conf.height, self.conf.width, 2])
+        self.test_label = tf.placeholder(tf.float32,[None, self.conf.height, self.conf.width, 3])
+        self.test_y = tf.placeholder(tf.int32,[None,self.conf.n_class])
+        
+        with tf.variable_scope('ENC_R', reuse= True) as scope:
+            inter_out_con = encoder_all(self.test_input)
+            self.z_r_con = encoder_x_r(inter_out_con, self.conf.hidden_size)
+
 
     def config_summary(self):
         summarys = []                      
         summarys.append(tf.summary.scalar('/Rec_loss', self.rec_loss))
-        summarys.append(tf.summary.scalar('/encoder_loss', self.encr_loss))
-        summarys.append(tf.summary.scalar('/decoder_loss', self.decr_loss))
+        summarys.append(tf.summary.scalar('/encoder_loss', self.encdr_loss_enc))
+        summarys.append(tf.summary.scalar('/decoder_loss', self.decdr_loss_dec))
         summarys.append(tf.summary.scalar('/enc_adv_loss', self.encdr_loss))
-        summarys.append(tf.summary.scalar('/dec_adv_loss', self.decdr_loss))
+        summarys.append(tf.summary.scalar('/dec_adv_loss', self.decdr_loss)) 
         input_ch1, input_ch2 = tf.split(self.input_r, num_or_size_splits=2, axis=3)
-        summarys.append(tf.summary.image('input_channel1', input_ch1, max_outputs = 10))
-        summarys.append(tf.summary.image('input_channel2', input_ch2, max_outputs = 10))
+        summarys.append(tf.summary.image('input_channel_one', input_ch1, max_outputs = 10))
+        summarys.append(tf.summary.image('input_channel_two', input_ch2, max_outputs = 10))
         out_ch1, out_ch2 = tf.split(self.out_x_r, num_or_size_splits=2, axis =3)
-        summarys.append(tf.summary.image('output_channel1', out_ch1, max_outputs = 10))
-        summarys.append(tf.summary.image('output_channel2', out_ch2, max_outputs = 10))
+        summarys.append(tf.summary.image('output_channel_one', out_ch1, max_outputs = 10))
+        summarys.append(tf.summary.image('output_channel_two', out_ch2, max_outputs = 10))
         summary = tf.summary.merge(summarys)
+        return summary
+
+
+    def config_con_summary(self):
+        summarys = []    
+
+        summarys.append(tf.summary.scalar('/Rec_loss_con', self.rec_loss_rs))
+        summarys.append(tf.summary.scalar('/encoder_loss_con', self.encds_loss_enc)) 
+        summarys.append(tf.summary.scalar('/r_loss', self.zr_loss)) 
+        summarys.append(tf.summary.scalar('/y_loss', self.y_loss)) 
+        summarys.append(tf.summary.scalar('/decoder_loss_con', self.decdrs_loss_dec))
+        summarys.append(tf.summary.scalar('/enc_adv_loss_con', self.encdr_s_loss))
+        summarys.append(tf.summary.scalar('/dec_adv_loss_con', self.decdr_s_loss))
+        summarys.append(tf.summary.image('input_con', self.input_r_s, max_outputs = 10))
+        summarys.append(tf.summary.image('output_con', self.out_x_r_s, max_outputs = 10))
+        summary = tf.summary.merge(summarys)
+
         return summary
 
     def get_bce_loss(self, x, y):
         return tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits= x, labels = y))
+
+    def get_log_softmax(self, x, y):
+        return tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits= x, labels = y))
+
+    def get_mse_loss(self, x, y):
+        return tf.losses.mean_squared_error(predictions= x, labels= y)
 
     def save(self, step):
         print('---->saving', step)
@@ -152,29 +266,71 @@ class AAE(object):
                 if iterations %self.conf.save_step == 0:
                     self.save(iterations+self.conf.checkpoint)
                 iterations = iterations + 1
-            
-            
             print("enc_r_loss is  ================", enc_r_loss)
             print("dec_r_loss is =====================",dec_r_loss)            
             self.generate_and_save()
+        
+        for epoch in range(self.conf.max_con_epoch):
+            for i in range(self.conf.updates_per_epoch):
+                inputs, labels = data.next_batch(self.conf.batch_size)
+                input_only_r = data.extract(inputs)
+                sampled_zs = np.random.normal(size= (self.conf.batch_size,self.conf.hidden_size))
+                feed_dict_1 = {self.input_r_s: inputs, self.input_y: labels, self.sampled_z_s:sampled_zs}
+                feed_dict_2 = {self.input_r_s: inputs, self.input_extracted:inputs_only_r, self.input_y: labels, self.sampled_z_s:sampled_zs}
+                _ , encd_s_loss = self.sess.run([self.train_encd_r_s,self.encdr_s_loss], feed_dict= feed_dict1)
+                _ , decd_s_loss = self.sess.run([self.train_decd_r_s, self.decdr_s_loss], feed_dict = feed_dict1)
+                _ , enc_s_loss = self.sess.run([self.train_enc_r_s, self.encr_s_loss], feed_dict= feed_dict2)
+                _ , dec_s_loss, summary = self.sess.run([self.train_dec_r_s, self.decr_s_loss, self.train_con_summary],feed_dict = feed_dict2)
+                if iterations %self.conf.summary_step == 1:
+                    self.save_summary(summary, iterations+self.conf.checkpoint)
+                if iterations %self.conf.save_step == 0:
+                    self.save(iterations+self.conf.checkpoint)
+                iterations = iterations +1
+                print("encd_s_loss is  ================", encd_s_loss, "decd_s_loss is =============", decd_s_loss)
+            self.generate_con_image()
+
+        self.evaluate()
+
+
+    
+
+    def generate_con_image(self):
+        
+        for i in range(self.conf.n_class):
+            sampled_y = numpy.zeros((self.conf.batch_size, self.conf.n_class), dtype=np.float32)
+            sampled_y[:,i]=1
+            imgs = self.sess.run(self.generate_con_out, {self.generated_y: sampled_y})
+            for k in range(imgs.shape[0]):
+                imgs_folder = os.path.join(self.conf.working_directory, 'imgs_con_', str(i))
+                if not os.path.exists(imgs_folder):
+                    os.makedirs(imgs_folder)   
+                imsave(os.path.join(imgs_folder,'%d.png') % k,
+                    imgs[k,:,:,:])
+        print("conditional generated imgs saved!!!!==========================")               
+    
+    def evaluate(self):
+        for i in range(self.conf.n_class):
+
+        return
     
     def generate_and_save(self):
-            imgs = self.sess.run(self.generated_out)
-            for k in range(imgs.shape[0]):
-                imgs_folder = os.path.join(self.conf.working_directory, 'imgs')
-                if not os.path.exists(imgs_folder):
-                    os.makedirs(imgs_folder)      
-                res= np.zeros([imgs.shape[1],imgs.shape[2],3])         
-                res[:,:,0]=imgs[k,:,:,0]
-                res[:,:,1]= -1
-                res[:,:,2]=imgs[k,:,:,1]                
-                imsave(os.path.join(imgs_folder,'%d.png') % k,
-                    res)
-                imsave(os.path.join(imgs_folder,'%d_ch0.png') % k,
-                    imgs[k,:,:,0])
-                imsave(os.path.join(imgs_folder,'%d_ch1.png') % k,
-                    imgs[k,:,:,1])    
-            print("generated imgs saved!!!!==========================")
+        imgs = self.sess.run(self.generated_out)
+        for k in range(imgs.shape[0]):
+            imgs_folder = os.path.join(self.conf.working_directory, 'imgs')
+            if not os.path.exists(imgs_folder):
+                os.makedirs(imgs_folder)      
+            res= np.zeros([imgs.shape[1],imgs.shape[2],3])         
+            res[:,:,0]=imgs[k,:,:,0]
+            res[:,:,1]= -1
+            res[:,:,2]=imgs[k,:,:,1]                
+            imsave(os.path.join(imgs_folder,'%d.png') % k,
+                res)
+            imsave(os.path.join(imgs_folder,'%d_ch0.png') % k,
+                imgs[k,:,:,0])
+            imsave(os.path.join(imgs_folder,'%d_ch1.png') % k,
+                imgs[k,:,:,1])    
+        print("generated imgs saved!!!!==========================")
+
 
     def test(self):
         return

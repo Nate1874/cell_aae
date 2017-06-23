@@ -15,6 +15,7 @@ def configure():
     flags.DEFINE_integer("max_test_epoch", 100, "max  test epoch")
     flags.DEFINE_integer("summary_step", 100, "save summary per #summary_step iters")
     flags.DEFINE_integer("save_step", 100, "save model per #save_step iters")
+    flags.DEFINE_integer("n_class", 10, "number of classes")
     flags.DEFINE_float("learning_rate", 2e-4, "learning rate")
     flags.DEFINE_float("gamma_enc", 1e-4, "gamma ratio for encoder")
     flags.DEFINE_float("gamma_dec", 1e-4, "gamma ratio for decoder")
