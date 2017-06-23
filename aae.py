@@ -84,27 +84,19 @@ class AAE(object):
             intermediate_out_r = encoder_all(self.input_r)
             self.latent_z_r = encoder_x_r(intermediate_out_r, self.conf.hidden_size)
         with tf.variable_scope('DEC_R') as scope:
-            print(self.latent_z_r.get_shape())
-            self.out_x_r = decoder_all(self.latent_z_r, self.chan_out_r)
-            print(self.out_x_r.get_shape())
+            self.out_x_r = decoder_all(self.latent_z_r, self.chan_out_r) #reconstructed
             scope.reuse_variables()
-            print(self.sampled_z_r.get_shape())
             self.out_x_r_sampled = decoder_all(self.sampled_z_r, self.chan_out_r)
-            print(self.out_x_r_sampled.get_shape())
         with tf.variable_scope('ENCD_R') as scope:
             self.d_enc_out_p = createAdversary(self.sampled_z_r) #postive samples # V_gen_encdr
             scope.reuse_variables()
             self.d_enc_out_n = createAdversary(self.latent_z_r)#negative samples # v_obs_encdr
         with tf.variable_scope('DECD_R') as scope:
-            output1 = createAdversary_Dec(self.input_r) # positive samples # v_obs_decdr
-    #        print(self.input_r.get_shape())
+            output1 = createAdversary_Dec(self.input_r) # positive samples # v_obs_decdr # use the same one or draw another one?
             self.d_dec_out_p = Adv_dec_x_r(output1)
-    #        print(output1.get_shape())
             scope.reuse_variables()
-            output2 = createAdversary_Dec(self.out_x_r_sampled) #negative samples # v_gen_decdr
-    #        print(self.out_x_r_sampled.get_shape())
+            output2 = createAdversary_Dec(self.out_x_r_sampled) #negative samples # v_gen_decdr 
             self.d_dec_out_n = Adv_dec_x_r(output2)
-
             output3 = createAdversary_Dec(self.out_x_r) # sample for autoencoder loss
             self.d_dec_out_rec = Adv_dec_x_r(output3)
             
@@ -115,7 +107,7 @@ class AAE(object):
 
         # the loss for the top autoencoder
         self.decdr_loss = self.get_bce_loss(self.d_dec_out_p, tf.ones_like(self.d_dec_out_p)) + self.get_bce_loss(self.d_dec_out_n, tf.zeros_like(self.d_dec_out_n))
-        self.encdr_loss = self.get_bce_loss(self.d_enc_out_p, tf.ones_like(self.d_enc_out_n)) + self.get_bce_loss(self.d_enc_out_n,  tf.zeros_like(self.d_enc_out_p))
+        self.encdr_loss = self.get_bce_loss(self.d_enc_out_p, tf.ones_like(self.d_enc_out_p)) + self.get_bce_loss(self.d_enc_out_n,  tf.zeros_like(self.d_enc_out_n))
         self.rec_loss = self.get_bce_loss(self.out_x_r, self.input_r)
         self.encdr_loss_enc = self.get_bce_loss(self.d_enc_out_n, tf.ones_like(self.d_enc_out_n))
         self.decdr_loss_dec = self.get_bce_loss(self.d_dec_out_n, tf.ones_like(self.d_dec_out_n)) + self.get_bce_loss(self.d_dec_out_rec, tf.ones_like(self.d_dec_out_rec))
@@ -125,8 +117,9 @@ class AAE(object):
         #build the conditional auto encoder
         with tf.variable_scope('ENC_R_S') as scope:
             intermediate_out_r_s = encoder_all(self.input_r_s)
-            self.latent_y, self.latent_s, self.latent_z_rs = encoder_x_r_s(intermediate_out_r_s, 
+            self.latent_y_raw, self.latent_s, self.latent_z_rs = encoder_x_r_s(intermediate_out_r_s, 
                 self.conf.hidden_size, self.conf.n_class, self.conf.hidden_size)
+            self.latent_y = tf.nn.log_softmax(self.latent_y_raw)
 
         with tf.variable_scope('DEC_R_S') as scope:
             dec_input = tf.concat([self.latent_z_rs, self.latent_y, self.latent_s], 1)
@@ -168,7 +161,7 @@ class AAE(object):
         self.decdr_s_loss = self.get_log_softmax(self.d_decds_out_p, self.y_head)+ \
             self.get_log_softmax(self.d_decds_out_n, self.y_gen)
         self.rec_loss_rs = self.get_bce_loss(self.out_x_r_s, self.input_r_s)
-        self.y_loss = self.get_log_softmax(self.latent_y, self.input_y)
+        self.y_loss = self.get_log_softmax(self.latent_y_raw, self.input_y)
         print("===============================")
         print(self.y_loss.get_shape())
         self.zr_loss = self.get_mse_loss(self.latent_z_rs, self.z_r_con)  #MSE error
@@ -184,7 +177,7 @@ class AAE(object):
         self.test_input = tf.placeholder(tf.float32,[None, self.conf.height, self.conf.width, 2])
         self.test_label = tf.placeholder(tf.float32,[None, self.conf.height, self.conf.width, 3])
         self.test_y = tf.placeholder(tf.int32,[None,self.conf.n_class])
-        
+
         with tf.variable_scope('ENC_R', reuse= True) as scope:
             inter_out_con = encoder_all(self.test_input)
             self.z_r_con = encoder_x_r(inter_out_con, self.conf.hidden_size)
@@ -223,8 +216,9 @@ class AAE(object):
 
         return summary
 
-    def get_bce_loss(self, x, y):
-        return tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits= x, labels = y))
+    def get_bce_loss(self, output_tensor, target_tensor, epsilon=1e-10):
+   #     return tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits= x, labels = y))
+        return tf.reduce_mean(-target_tensor * tf.log(output_tensor + epsilon) -(1.0 - target_tensor) * tf.log(1.0 - output_tensor + epsilon))
 
     def get_log_softmax(self, x, y):
         return tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits= x, labels = y))
@@ -260,9 +254,9 @@ class AAE(object):
                 _, encd_r_loss, = self.sess.run([self.train_encd_r, self.encdr_loss], feed_dict= feed_dict)
                 _, enc_r_loss = self.sess.run([self.train_enc_r, self.encr_loss], feed_dict =  feed_dict)
                 loss, _, dec_r_loss, summary = self.sess.run([self.decdr_loss_dec, self.train_dec_r, self.decr_loss, self.train_summary], feed_dict = feed_dict)
-                print("loss is ==================", loss)
                 if iterations %self.conf.summary_step == 1:
                     self.save_summary(summary, iterations+self.conf.checkpoint)
+                    print("summary_saved")
                 if iterations %self.conf.save_step == 0:
                     self.save(iterations+self.conf.checkpoint)
                 iterations = iterations + 1
@@ -280,16 +274,16 @@ class AAE(object):
                 _ , encd_s_loss = self.sess.run([self.train_encd_r_s,self.encdr_s_loss], feed_dict= feed_dict1)
                 _ , decd_s_loss = self.sess.run([self.train_decd_r_s, self.decdr_s_loss], feed_dict = feed_dict1)
                 _ , enc_s_loss = self.sess.run([self.train_enc_r_s, self.encr_s_loss], feed_dict= feed_dict2)
-                _ , dec_s_loss, summary = self.sess.run([self.train_dec_r_s, self.decr_s_loss, self.train_con_summary],feed_dict = feed_dict2)
+                _ , dec_s_loss, summary_con = self.sess.run([self.train_dec_r_s, self.decr_s_loss, self.train_con_summary],feed_dict = feed_dict2)
                 if iterations %self.conf.summary_step == 1:
-                    self.save_summary(summary, iterations+self.conf.checkpoint)
+                    self.save_summary(summary_con, iterations+self.conf.checkpoint)
                 if iterations %self.conf.save_step == 0:
                     self.save(iterations+self.conf.checkpoint)
                 iterations = iterations +1
                 print("encd_s_loss is  ================", encd_s_loss, "decd_s_loss is =============", decd_s_loss)
             self.generate_con_image()
 
-        self.evaluate()
+  #      self.evaluate()
 
 
     
@@ -308,10 +302,10 @@ class AAE(object):
                     imgs[k,:,:,:])
         print("conditional generated imgs saved!!!!==========================")               
     
-    def evaluate(self):
-        for i in range(self.conf.n_class):
+    # def evaluate(self):
+    #     for i in range(self.conf.n_class):
 
-        return
+    #     return
     
     def generate_and_save(self):
         imgs = self.sess.run(self.generated_out)
@@ -321,7 +315,7 @@ class AAE(object):
                 os.makedirs(imgs_folder)      
             res= np.zeros([imgs.shape[1],imgs.shape[2],3])         
             res[:,:,0]=imgs[k,:,:,0]
-            res[:,:,1]= -1
+            res[:,:,1]= 0
             res[:,:,2]=imgs[k,:,:,1]                
             imsave(os.path.join(imgs_folder,'%d.png') % k,
                 res)

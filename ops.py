@@ -63,7 +63,7 @@ def encoder_x_r(input_tensor, output_size):
 
 def encoder_x_r_s(input_tensor, output_size_r, nclass, output_size_s):
     output_y = tf.contrib.layers.fully_connected(input_tensor, nclass, scope='class_deconv_1',
-        activation_fn= tf.nn.log_softmax, normalizer_fn=tf.contrib.layers.batch_norm, 
+        activation_fn= None, normalizer_fn=tf.contrib.layers.batch_norm, 
         normalizer_params={'scale': True})
     output_s = tf.contrib.layers.fully_connected(input_tensor, output_size_s,
         scope='s_deconv_1', activation_fn= None, normalizer_fn=tf.contrib.layers.batch_norm, 
@@ -110,8 +110,8 @@ def decoder_all(input_sensor, chan_out):
     print(output.get_shape())
     output = tf.contrib.layers.conv2d_transpose(
         output, chan_out, deconv_size, scope='deconv6', stride=2, padding='SAME',
-        activation_fn=tf.nn.tanh, normalizer_fn=None)
-    print(output.get_shape()) 
+        activation_fn=tf.nn.sigmoid, normalizer_fn=None)
+    print(output.get_shape())  # use sigmoid?
     return output
 
 def createAdversary(input_tensor):        
@@ -124,7 +124,7 @@ def createAdversary(input_tensor):
         activation_fn=lrelu, normalizer_fn=tf.contrib.layers.batch_norm,
         normalizer_params={'scale': True})
     output = tf.contrib.layers.fully_connected(output, 1, scope='full4',
-        activation_fn=None, normalizer_fn=tf.contrib.layers.batch_norm,
+        activation_fn=tf.nn.sigmoid, normalizer_fn=tf.contrib.layers.batch_norm,
         normalizer_params={'scale': True})
     return output
 
@@ -135,25 +135,25 @@ def createAdversary_Dec(input_tensor, gan_noise=0.01, noise_bool=False):
     output = tf.contrib.layers.conv2d(
         input_tensor, ndf, conv_size, scope='convlayer1', stride =2, padding='SAME',
         activation_fn=lrelu)
-    if noise_bool == True and gan_noise>0:
+    if noise_bool and gan_noise>0:
         output = add_white_noise(output)
     output = tf.contrib.layers.conv2d(
         output, ndf*2, conv_size, scope='convlayer2', stride =2, padding='SAME',
         activation_fn=lrelu, normalizer_fn=tf.contrib.layers.batch_norm,
         normalizer_params={'scale': True})
-    if noise_bool == True and gan_noise>0:
+    if noise_bool  and gan_noise>0:
         output = add_white_noise(output)    
     output = tf.contrib.layers.conv2d(
         output, ndf*4, conv_size, scope='convlayer3', stride =2, padding='SAME',
         activation_fn=lrelu, normalizer_fn=tf.contrib.layers.batch_norm,
         normalizer_params={'scale': True})        
-    if noise_bool == True and gan_noise>0:
+    if noise_bool and gan_noise>0:
         output = add_white_noise(output)    
     output = tf.contrib.layers.conv2d(
         output, ndf*8, conv_size, scope='convlayer4', stride =2, padding='SAME',
         activation_fn=lrelu, normalizer_fn=tf.contrib.layers.batch_norm,
         normalizer_params={'scale': True})       
-    if noise_bool == True and gan_noise>0:
+    if noise_bool and gan_noise>0:
         output = add_white_noise(output)    
     output = tf.contrib.layers.conv2d(
         output, ndf*8, conv_size, scope='convlayer5', stride =2, padding='SAME',
@@ -166,13 +166,13 @@ def createAdversary_Dec(input_tensor, gan_noise=0.01, noise_bool=False):
 def Adv_dec_x_r(input_tensor):
     output= tf.contrib.layers.flatten(input_tensor)
     output = tf.contrib.layers.fully_connected(output, 1, scope='decd_r_full1',
-        activation_fn=None)
+        activation_fn=tf.nn.sigmoid) #
     return output
 
 def Adv_dec_x_r_s(input_tensor, nclass):
     output = tf.contrib.layers.flatten(input_tensor)
     output = tf.contrib.layers.fully_connected(output, nclass+1, scope='decd_rs_full1',
-        activation_fn=tf.nn.log_softmax)
+        activation_fn=None)  # should be None?
     return output
 
 def log_likelihood_gaussian(sample, mean, sigma):
