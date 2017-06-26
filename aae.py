@@ -10,7 +10,6 @@ from progressbar import ETA, Bar, Percentage, ProgressBar
 from scipy.misc import imsave, imread
 from data_reader import data_reader
 
-
 class AAE(object):
 
     def __init__(self, sess, flag):
@@ -68,16 +67,21 @@ class AAE(object):
         self.writer = tf.summary.FileWriter(self.conf.logdir, self.sess.graph)
         self.train_summary = self.config_summary()
         self.train_con_summary =self.config_con_summary()
+        self.test_summary = self.config_test_summary()
 
     def build_network(self):
 
-
         #build the first autoencoder
         self.input_r = tf.placeholder(tf.float32,[None, self.conf.height, self.conf.width, 2])
+
         self.sampled_z_r = tf.placeholder(tf.float32,[None, self.conf.hidden_size])
+
         self.input_r_s = tf.placeholder(tf.float32,[None, self.conf.height, self.conf.width, 3])
+
         self.sampled_z_s = tf.placeholder(tf.float32,[None, self.conf.hidden_size])
+
         self.input_y = tf.placeholder(tf.int32,[None,self.conf.n_class])
+
         self.input_extracted = tf.placeholder(tf.float32,[None, self.conf.height, self.conf.width, 2])
     #    self.sampled_x_r = tf.placeholder(tf.float32,[None, self.height, self.width, 2])
         with tf.variable_scope('ENC_R') as scope:
@@ -170,18 +174,28 @@ class AAE(object):
         self.decdrs_loss_dec = self.get_log_softmax(self.d_decds_out_n, self.y_head) + \
             self.get_log_softmax(self.d_decds_out_recon, self.y_head)        
         self.encr_s_loss = self.rec_loss_rs+ self.zr_loss+ self.y_loss+ self.conf.gamma_enc*self.encds_loss_enc
-        self.decr_s_loss = self.rec_loss_rs + self.conf.gamma_dec* self.decdr_loss_dec
+        self.decr_s_loss = self.rec_loss_rs + self.conf.gamma_dec* self.decdrs_loss_dec
 
         # build the model for the final conditional generation
         
         self.test_input = tf.placeholder(tf.float32,[None, self.conf.height, self.conf.width, 2])
-        self.test_label = tf.placeholder(tf.float32,[None, self.conf.height, self.conf.width, 3])
+        self.test_label = tf.placeholder(tf.float32,[None, self.conf.height, self.conf.width, 3]) # desired results
         self.test_y = tf.placeholder(tf.int32,[None,self.conf.n_class])
 
-        with tf.variable_scope('ENC_R', reuse= True) as scope:
-            inter_out_con = encoder_all(self.test_input)
-            self.z_r_con = encoder_x_r(inter_out_con, self.conf.hidden_size)
 
+
+        with tf.variable_scope('ENC_R', reuse= True) as scope:
+            inter_out_test = encoder_all(self.test_input)
+            self.z_r_test = encoder_x_r(inter_out_test, self.conf.hidden_size)
+        
+        randomed_s_test = tf.random_normal([self.conf.batch_size,self.conf.hidden_size])
+        gen_input_test= tf.concat([self.z_r_test,self.test_y, randomed_s_test],1)
+
+        with tf.variable_scope('DEC_R_S', reuse= True) as scope:
+            self.test_out = decoder_all(gen_input_test, self.chan_out_r_s)
+
+        
+       
 
     def config_summary(self):
         summarys = []                      
@@ -216,6 +230,15 @@ class AAE(object):
 
         return summary
 
+    def config_test_summary():
+        summarys= []
+        summarys.append(tf.summary.image('test_input', self.test_input, max_outputs = 10))
+        summarys.append(tf.summary.image('test_label', self.test_label, max_outputs = 10))
+        summarys.append(tf.summary.image('test_out', self.test_out, max_outputs = 10))
+        summary = tf.summary.merge(summarys)
+        return summary
+        
+
     def get_bce_loss(self, output_tensor, target_tensor, epsilon=1e-10):
    #     return tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits= x, labels = y))
         return tf.reduce_mean(-target_tensor * tf.log(output_tensor + epsilon) -(1.0 - target_tensor) * tf.log(1.0 - output_tensor + epsilon))
@@ -238,11 +261,15 @@ class AAE(object):
 
     def train(self):
         if self.conf.checkpoint >0:
-            self.load(self.conf.checkpoint)
+            self.reload(self.conf.checkpoint)
         data = data_reader()
         iterations = 1
     #    epoch = 0
-        for epoch in range(self.conf.max_epoch):
+        max_epoch = int (max(self.conf.max_epoch - self.conf.checkpoint/500, 0))
+
+        print("The epochs  for the first model to be trained is ", max_epoch)
+
+        for epoch in range(max_epoch):
         #    pbar = ProgressBar()
             for i in range(self.conf.updates_per_epoch):            
                 inputs, labels= data.next_batch(self.conf.batch_size)
@@ -263,27 +290,32 @@ class AAE(object):
             print("enc_r_loss is  ================", enc_r_loss)
             print("dec_r_loss is =====================",dec_r_loss)            
             self.generate_and_save()
+        print("the first model is well trained, now the second one !================")
+        max_con_epoch = int (self.conf.max_con_epoch - (self.conf.checkpoint- 75000)/ 500)
+        print("The epochs  for the first model to be trained is ", max_con_epoch)
         
-        for epoch in range(self.conf.max_con_epoch):
-            for i in range(self.conf.updates_per_epoch):
+        for epoch in range(max_con_epoch):
+            pbar = ProgressBar()
+            for i in pbar(range(self.conf.updates_per_epoch)):
                 inputs, labels = data.next_batch(self.conf.batch_size)
-                input_only_r = data.extract(inputs)
+                inputs_only_r = data.extract(inputs)
                 sampled_zs = np.random.normal(size= (self.conf.batch_size,self.conf.hidden_size))
                 feed_dict_1 = {self.input_r_s: inputs, self.input_y: labels, self.sampled_z_s:sampled_zs}
                 feed_dict_2 = {self.input_r_s: inputs, self.input_extracted:inputs_only_r, self.input_y: labels, self.sampled_z_s:sampled_zs}
-                _ , encd_s_loss = self.sess.run([self.train_encd_r_s,self.encdr_s_loss], feed_dict= feed_dict1)
-                _ , decd_s_loss = self.sess.run([self.train_decd_r_s, self.decdr_s_loss], feed_dict = feed_dict1)
-                _ , enc_s_loss = self.sess.run([self.train_enc_r_s, self.encr_s_loss], feed_dict= feed_dict2)
-                _ , dec_s_loss, summary_con = self.sess.run([self.train_dec_r_s, self.decr_s_loss, self.train_con_summary],feed_dict = feed_dict2)
+                _ , encd_s_loss = self.sess.run([self.train_encd_r_s,self.encdr_s_loss], feed_dict= feed_dict_1)
+                _ , decd_s_loss = self.sess.run([self.train_decd_r_s, self.decdr_s_loss], feed_dict = feed_dict_1)
+                _ , enc_s_loss = self.sess.run([self.train_enc_r_s, self.encr_s_loss], feed_dict= feed_dict_2)
+           #     _ = self.sess.run(self.decr_s_loss,feed_dict = feed_dict_2)
+                _ , dec_s_loss, summary_con = self.sess.run([self.train_dec_r_s, self.decr_s_loss, self.train_con_summary],feed_dict = feed_dict_2)
+         #       _ , dec_s_loss = self.sess.run([self.train_dec_r_s, self.decr_s_loss],feed_dict = feed_dict_2)
                 if iterations %self.conf.summary_step == 1:
                     self.save_summary(summary_con, iterations+self.conf.checkpoint)
                 if iterations %self.conf.save_step == 0:
                     self.save(iterations+self.conf.checkpoint)
                 iterations = iterations +1
-                print("encd_s_loss is  ================", encd_s_loss, "decd_s_loss is =============", decd_s_loss)
+       #         print("encd_s_loss is  ================", encd_s_loss, "decd_s_loss is =============", decd_s_loss)
             self.generate_con_image()
-
-  #      self.evaluate()
+        self.evaluate()
 
 
     
@@ -291,7 +323,7 @@ class AAE(object):
     def generate_con_image(self):
         
         for i in range(self.conf.n_class):
-            sampled_y = numpy.zeros((self.conf.batch_size, self.conf.n_class), dtype=np.float32)
+            sampled_y = np.zeros((self.conf.batch_size, self.conf.n_class), dtype=np.float32)
             sampled_y[:,i]=1
             imgs = self.sess.run(self.generate_con_out, {self.generated_y: sampled_y})
             for k in range(imgs.shape[0]):
@@ -302,10 +334,25 @@ class AAE(object):
                     imgs[k,:,:,:])
         print("conditional generated imgs saved!!!!==========================")               
     
-    # def evaluate(self):
-    #     for i in range(self.conf.n_class):
+    def evaluate(self):        
+        data = data_reader()
+        for i in range(self.conf.max_test_epoch):
+            x, y = data.next_test_batch(self.conf.batch_size)
+            x_extracted = data.extract(x)
+            output_test, summary = self.sess.run(self.test_out, self.test_summary, {self.test_input: x_extracted, self.test_y: y, self.test_label: x})
+            for k in range(output_test.shape[0]):
+                imgs_folder = os.path.join(self.conf.working_directory, 'imgs_test')
+                if not os.path.exists(imgs_folder):
+                    os.makedirs(imgs_folder)
+                res = np.ones([output_test.shape[1], output_test.shape[2]*3 +4, 3])* 255
+                res[:,0:output_test.shape[1],:]= x[k,:,:,:]
+                res[:,output_test.shape[1]+2:output_test.shape[1]*2+2,:] = x_extracted[k,:,:,:]
+                res[:,output_test.shape[1]*2+4:, :] = output_test[k,:,:,:]
+                imsave(os.path.join(imgs_folder,'%d_epoch_%d.png') %(i,k),
+                    res)
+            self.save_summary(summary，i)
+        print("Evaluation images generated！===============================")
 
-    #     return
     
     def generate_and_save(self):
         imgs = self.sess.run(self.generated_out)

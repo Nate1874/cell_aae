@@ -12,9 +12,9 @@ def configure():
     flags.DEFINE_integer("updates_per_epoch", 500, "number of updates per epoch")
     flags.DEFINE_integer("max_epoch", 150, "max epoch for first step training")
     flags.DEFINE_integer("max_con_epoch", 300, "max epoch for conditional part training")
-    flags.DEFINE_integer("max_test_epoch", 100, "max  test epoch")
+    flags.DEFINE_integer("max_test_epoch", 107, "max  test epoch")
     flags.DEFINE_integer("summary_step", 10, "save summary per #summary_step iters")
-    flags.DEFINE_integer("save_step", 100, "save model per #save_step iters")
+    flags.DEFINE_integer("save_step", 1000, "save model per #save_step iters")
     flags.DEFINE_integer("n_class", 10, "number of classes")
     flags.DEFINE_float("learning_rate", 2e-4, "learning rate")
     flags.DEFINE_float("gamma_enc", 1e-4, "gamma ratio for encoder")
@@ -25,7 +25,7 @@ def configure():
                         "the file directory")
     flags.DEFINE_integer("hidden_size", 16, "size of the hidden VAE unit")
  #   flags.DEFINE_integer("channel", 64, "size of initial channel in decoder")
-    flags.DEFINE_integer("checkpoint", 0, "number of epochs to be reloaded")
+    flags.DEFINE_integer("checkpoint", 75000, "number of epochs to be reloaded")
  #   flags.DEFINE_string("model_name", 'low_rank', "vanilla or low_rank")
     flags.DEFINE_integer("height", 256, "height of image")
     flags.DEFINE_integer("width", 256, "width of image")
@@ -52,7 +52,7 @@ def main(_):
         getattr(model,args.action)()
 
 if __name__ == "__main__":
-    os.environ['CUDA_VISIBLE_DEVICES'] = '6'
+    os.environ['CUDA_VISIBLE_DEVICES'] = '1'
     tf.app.run()
 
 
