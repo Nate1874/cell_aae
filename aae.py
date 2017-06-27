@@ -189,6 +189,7 @@ class AAE(object):
             self.z_r_test = encoder_x_r(inter_out_test, self.conf.hidden_size)
         
         randomed_s_test = tf.random_normal([self.conf.batch_size,self.conf.hidden_size])
+        self.test_y= tf.cast(self.test_y, tf.float32)
         gen_input_test= tf.concat([self.z_r_test,self.test_y, randomed_s_test],1)
 
         with tf.variable_scope('DEC_R_S', reuse= True) as scope:
@@ -230,7 +231,7 @@ class AAE(object):
 
         return summary
 
-    def config_test_summary():
+    def config_test_summary(self):
         summarys= []
         summarys.append(tf.summary.image('test_input', self.test_input, max_outputs = 10))
         summarys.append(tf.summary.image('test_label', self.test_label, max_outputs = 10))
@@ -350,7 +351,7 @@ class AAE(object):
                 res[:,output_test.shape[1]*2+4:, :] = output_test[k,:,:,:]
                 imsave(os.path.join(imgs_folder,'%d_epoch_%d.png') %(i,k),
                     res)
-            self.save_summary(summary，i)
+            self.save_summary(summary, i)
         print("Evaluation images generated！===============================")
 
     
