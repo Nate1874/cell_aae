@@ -340,18 +340,19 @@ class AAE(object):
         for i in range(self.conf.max_test_epoch):
             x, y = data.next_test_batch(self.conf.batch_size)
             x_extracted = data.extract(x)
-            output_test, summary = self.sess.run(self.test_out, self.test_summary, {self.test_input: x_extracted, self.test_y: y, self.test_label: x})
-            for k in range(output_test.shape[0]):
-                imgs_folder = os.path.join(self.conf.working_directory, 'imgs_test')
-                if not os.path.exists(imgs_folder):
-                    os.makedirs(imgs_folder)
-                res = np.ones([output_test.shape[1], output_test.shape[2]*3 +4, 3])* 255
-                res[:,0:output_test.shape[1],:]= x[k,:,:,:]
-                res[:,output_test.shape[1]+2:output_test.shape[1]*2+2,:] = x_extracted[k,:,:,:]
-                res[:,output_test.shape[1]*2+4:, :] = output_test[k,:,:,:]
-                imsave(os.path.join(imgs_folder,'%d_epoch_%d.png') %(i,k),
-                    res)
-            self.save_summary(summary, i)
+            for j in range (self.conf.max_generated_imgs):
+                output_test, summary = self.sess.run(self.test_out, self.test_summary, {self.test_input: x_extracted, self.test_y: y, self.test_label: x})
+                for k in range(output_test.shape[0]):
+                    imgs_folder = os.path.join(self.conf.working_directory, 'imgs_test')
+                    if not os.path.exists(imgs_folder):
+                        os.makedirs(imgs_folder)
+                    res = np.ones([output_test.shape[1], output_test.shape[2]*3 +4, 3])* 255
+                    res[:,0:output_test.shape[1],:]= x[k,:,:,:]
+                    res[:,output_test.shape[1]+2:output_test.shape[1]*2+2,:] = x_extracted[k,:,:,:]
+                    res[:,output_test.shape[1]*2+4:, :] = output_test[k,:,:,:]
+                    imsave(os.path.join(imgs_folder,'epoch_%d_#img_%d_gen_%d.png') %(i,k,j),
+                        res)
+                self.save_summary(summary, i*10*50+k*50+j)
         print("Evaluation images generated！===============================")
 
     
@@ -368,7 +369,7 @@ class AAE(object):
             imsave(os.path.join(imgs_folder,'%d.png') % k,
                 res)
             imsave(os.path.join(imgs_folder,'%d_ch0.png') % k,
-                imgs[k,:,:,0])
+                imgs[k,:,:,0]) 
             imsave(os.path.join(imgs_folder,'%d_ch1.png') % k,
                 imgs[k,:,:,1])    
         print("generated imgs saved!!!!==========================")
