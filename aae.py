@@ -233,7 +233,9 @@ class AAE(object):
 
     def config_test_summary(self):
         summarys= []
-        summarys.append(tf.summary.image('test_input', self.test_input, max_outputs = 10))
+        input_ch1, input_ch2 = tf.split(self.test_input, num_or_size_splits=2, axis=3)
+        test_input = tf.concat([input_ch1, tf.zeros_like(input_ch1), input_ch2], axis = 3)
+        summarys.append(tf.summary.image('test_input', test_input, max_outputs = 10))
         summarys.append(tf.summary.image('test_label', self.test_label, max_outputs = 10))
         summarys.append(tf.summary.image('test_out', self.test_out, max_outputs = 10))
         summary = tf.summary.merge(summarys)
@@ -316,7 +318,7 @@ class AAE(object):
                 iterations = iterations +1
        #         print("encd_s_loss is  ================", encd_s_loss, "decd_s_loss is =============", decd_s_loss)
             self.generate_con_image()
-        self.evaluate()
+        self.evaluate(data)
 
 
     
@@ -335,25 +337,38 @@ class AAE(object):
                     imgs[k,:,:,:])
         print("conditional generated imgs saved!!!!==========================")               
     
-    def evaluate(self):        
-        data = data_reader()
-        for i in range(self.conf.max_test_epoch):
+    def evaluate(self, data):        
+     #   data = data_reader()
+        pbar = ProgressBar()
+        imgs_original_folder = os.path.join(self.conf.working_directory, 'imgs_original')
+        if not os.path.exists(imgs_original_folder):
+            os.makedirs(imgs_original_folder)
+        imgs_test_folder = os.path.join(self.conf.working_directory, 'imgs_test')
+        if not os.path.exists(imgs_test_folder):
+            os.makedirs(imgs_test_folder)
+        for i in pbar(range(self.conf.max_test_epoch)):
             x, y = data.next_test_batch(self.conf.batch_size)
             x_extracted = data.extract(x)
+     #       print("x==============================", x.shape)
+     #       print("x_ex============================", x_extracted.shape)
+            y_label  = np.argmax(y, axis= 1)
             for j in range (self.conf.max_generated_imgs):
-                output_test, summary = self.sess.run(self.test_out, self.test_summary, {self.test_input: x_extracted, self.test_y: y, self.test_label: x})
-                for k in range(output_test.shape[0]):
-                    imgs_folder = os.path.join(self.conf.working_directory, 'imgs_test')
-                    if not os.path.exists(imgs_folder):
-                        os.makedirs(imgs_folder)
-                    res = np.ones([output_test.shape[1], output_test.shape[2]*3 +4, 3])* 255
-                    res[:,0:output_test.shape[1],:]= x[k,:,:,:]
-                    res[:,output_test.shape[1]+2:output_test.shape[1]*2+2,:] = x_extracted[k,:,:,:]
-                    res[:,output_test.shape[1]*2+4:, :] = output_test[k,:,:,:]
-                    imsave(os.path.join(imgs_folder,'epoch_%d_#img_%d_gen_%d.png') %(i,k,j),
-                        res)
-                self.save_summary(summary, i*10*50+k*50+j)
-        print("Evaluation images generated！===============================")
+                output_test, summary = self.sess.run([self.test_out, self.test_summary], feed_dict={self.test_input: x_extracted, self.test_y: y, self.test_label: x})
+                for k in range(output_test.shape[0]):                    
+                    # res = np.ones([self.conf.height, self.conf.width*3 +4, 3])
+                    # res[:,0:self.conf.width,:]= x[k,:,:,:]
+                    # res[:,self.conf.width+2:self.conf.width*2+2,(0,2)] = x_extracted[k,:,:,:]
+                    # res[:,self.conf.width+2:self.conf.width*2+2,1] = 0
+                    # res[:,self.conf.width*2+4:, :] = output_test[k,:,:,:]
+                    temp_test_dir = os.path.join(imgs_test_folder, 'epoch_%d_#img_%d'%(i,k))
+                    if not os.path.exists(temp_test_dir):
+                        os.makedirs(temp_test_dir)
+                    imsave(os.path.join(imgs_original_folder,'epoch_%d_#img_%d_cls_%d.png') %(i,k,y_label[k]),
+                        x[k,:,:,:])
+                    imsave(os.path.join(temp_test_dir,'imgs_%d.png') %j,
+                        output_test[k,:,:,:])
+           #     self.save_summary(summary, i*10*50+k*50+j)
+        print("Evaluation images generated！==============================")
 
     
     def generate_and_save(self):
@@ -436,7 +451,7 @@ class AAE(object):
                 log_likelihood_prior(self.latent_sample)-\
                 log_likelihood_gaussian(self.latent_sample, self.mean, self.stddev)        
 
-    def evaluate(self, test_input):
+    def evaluate_nll(self, test_input):
         sample_ll= []
         for j in range (1000):
             res= self.sess.run(self.lle,{self.input_tensor: test_input})
