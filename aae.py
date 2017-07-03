@@ -330,7 +330,7 @@ class AAE(object):
             sampled_y[:,i]=1
             imgs = self.sess.run(self.generate_con_out, {self.generated_y: sampled_y})
             for k in range(imgs.shape[0]):
-                imgs_folder = os.path.join(self.conf.working_directory, 'imgs_con_', str(i))
+                imgs_folder = os.path.join(self.conf.working_directory, 'imgs_con_ssim_', str(i))
                 if not os.path.exists(imgs_folder):
                     os.makedirs(imgs_folder)   
                 imsave(os.path.join(imgs_folder,'%d.png') % k,
@@ -340,10 +340,10 @@ class AAE(object):
     def evaluate(self, data):        
      #   data = data_reader()
         pbar = ProgressBar()
-        imgs_original_folder = os.path.join(self.conf.working_directory, 'imgs_original')
+        imgs_original_folder = os.path.join(self.conf.working_directory, 'imgs_original_ssim')
         if not os.path.exists(imgs_original_folder):
             os.makedirs(imgs_original_folder)
-        imgs_test_folder = os.path.join(self.conf.working_directory, 'imgs_test')
+        imgs_test_folder = os.path.join(self.conf.working_directory, 'imgs_test_ssim')
         if not os.path.exists(imgs_test_folder):
             os.makedirs(imgs_test_folder)
         for i in pbar(range(self.conf.max_test_epoch)):
@@ -374,7 +374,7 @@ class AAE(object):
     def generate_and_save(self):
         imgs = self.sess.run(self.generated_out)
         for k in range(imgs.shape[0]):
-            imgs_folder = os.path.join(self.conf.working_directory, 'imgs')
+            imgs_folder = os.path.join(self.conf.working_directory, 'imgs_ssim')
             if not os.path.exists(imgs_folder):
                 os.makedirs(imgs_folder)      
             res= np.zeros([imgs.shape[1],imgs.shape[2],3])         
