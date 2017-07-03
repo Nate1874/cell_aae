@@ -26,13 +26,13 @@ def configure():
                         "the file directory")
     flags.DEFINE_integer("hidden_size", 16, "size of the hidden VAE unit")
  #   flags.DEFINE_integer("channel", 64, "size of initial channel in decoder")
-    flags.DEFINE_integer("checkpoint", 185000, "number of epochs to be reloaded")
+    flags.DEFINE_integer("checkpoint", 0, "number of epochs to be reloaded")
  #   flags.DEFINE_string("model_name", 'low_rank', "vanilla or low_rank")
     flags.DEFINE_integer("height", 256, "height of image")
     flags.DEFINE_integer("width", 256, "width of image")
-    flags.DEFINE_string("modeldir", './modeldir', "the model directory")
-    flags.DEFINE_string("logdir", './logdir', "the log directory")
-    flags.DEFINE_string("sampledir", './sampledir', "the sample directory")
+    flags.DEFINE_string("modeldir", './modeldir_pixel', "the model directory")
+    flags.DEFINE_string("logdir", './logdir_pixel', "the log directory")
+    flags.DEFINE_string("sampledir", './sampledir_pixel', "the sample directory")
     flags.FLAGS.__dict__['__parsed'] = False
     return flags.FLAGS
 
