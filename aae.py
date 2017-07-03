@@ -112,7 +112,7 @@ class AAE(object):
         # the loss for the top autoencoder
         self.decdr_loss = self.get_bce_loss(self.d_dec_out_p, tf.ones_like(self.d_dec_out_p)) + self.get_bce_loss(self.d_dec_out_n, tf.zeros_like(self.d_dec_out_n))
         self.encdr_loss = self.get_bce_loss(self.d_enc_out_p, tf.ones_like(self.d_enc_out_p)) + self.get_bce_loss(self.d_enc_out_n,  tf.zeros_like(self.d_enc_out_n))
-        self.rec_loss = self.get_bce_loss(self.out_x_r, self.input_r)
+        self.rec_loss = get_ssim_loss(self.out_x_r, self.input_r)
         self.encdr_loss_enc = self.get_bce_loss(self.d_enc_out_n, tf.ones_like(self.d_enc_out_n))
         self.decdr_loss_dec = self.get_bce_loss(self.d_dec_out_n, tf.ones_like(self.d_dec_out_n)) + self.get_bce_loss(self.d_dec_out_rec, tf.ones_like(self.d_dec_out_rec))
         self.encr_loss = self.rec_loss + self.conf.gamma_enc*self.encdr_loss_enc
@@ -164,7 +164,7 @@ class AAE(object):
             tf.ones([self.conf.batch_size, 1], tf.int32)], 1)
         self.decdr_s_loss = self.get_log_softmax(self.d_decds_out_p, self.y_head)+ \
             self.get_log_softmax(self.d_decds_out_n, self.y_gen)
-        self.rec_loss_rs = self.get_bce_loss(self.out_x_r_s, self.input_r_s)
+        self.rec_loss_rs = get_ssim_loss(self.out_x_r_s, self.input_r_s)
         self.y_loss = self.get_log_softmax(self.latent_y_raw, self.input_y)
         print("===============================")
         print(self.y_loss.get_shape())
