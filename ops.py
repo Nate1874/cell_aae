@@ -2,7 +2,7 @@ import tensorflow as tf
 import numpy as np
 
 conv_size = 4
-deconv_size = 4
+deconv_size = (4,4)
 ndf= 64
 
 def prelu(_x):  # code from https://stackoverflow.com/questions/39975676/how-to-implement-prelu-activation-in-tensorflow
@@ -83,34 +83,17 @@ def decoder_all(input_sensor, chan_out):
     print(output.get_shape())
     output = prelu(output)
     print(output.get_shape())
-    output = tf.contrib.layers.conv2d_transpose(    
-        output, 1024, deconv_size, scope='deconv1', stride = 2, padding='SAME',
-        activation_fn=prelu, normalizer_fn=tf.contrib.layers.batch_norm, 
-        normalizer_params={'scale': True})
+    output = dilated_conv(output, 1024, deconv_size, scope='deconv1')
     print(output.get_shape())
-    output = tf.contrib.layers.conv2d_transpose(
-        output, 512, deconv_size, scope='deconv2', stride = 2, padding='SAME',
-        activation_fn=prelu, normalizer_fn=tf.contrib.layers.batch_norm, 
-        normalizer_params={'scale': True})
+    output = dilated_conv(output, 512, deconv_size, scope='deconv2')
     print(output.get_shape())
-    output = tf.contrib.layers.conv2d_transpose(
-        output, 256, deconv_size, scope='deconv3', stride = 2, padding='SAME',
-        activation_fn=prelu, normalizer_fn=tf.contrib.layers.batch_norm, 
-        normalizer_params={'scale': True})
+    output = dilated_conv(output, 256, deconv_size, scope='deconv3')
     print(output.get_shape())
-    output = tf.contrib.layers.conv2d_transpose(
-        output, 128, deconv_size, scope='deconv4', stride = 2, padding='SAME',
-        activation_fn=prelu, normalizer_fn=tf.contrib.layers.batch_norm, 
-        normalizer_params={'scale': True})
+    output = dilated_conv(output, 128, deconv_size, scope='deconv4')
     print(output.get_shape())
-    output = tf.contrib.layers.conv2d_transpose(
-        output, 64, deconv_size, scope='deconv5', stride=2, padding='SAME',
-        activation_fn=prelu, normalizer_fn=tf.contrib.layers.batch_norm, 
-        normalizer_params={'scale': True})
+    output = dilated_conv(output, 64, deconv_size, scope='deconv5')
     print(output.get_shape())
-    output = tf.contrib.layers.conv2d_transpose(
-        output, chan_out, deconv_size, scope='deconv6', stride=2, padding='SAME',
-        activation_fn=tf.nn.sigmoid, normalizer_fn=None)
+    output = dilated_conv(output, chan_out, deconv_size, scope='deconv6', d_format='NHWC', Not_last = False)
     print(output.get_shape())  # use sigmoid?
     return output
 
@@ -207,3 +190,65 @@ def parzen_cpu_batch(x_batch, samples, sigma, batch_size, num_of_samples, data_s
     # Z = dim * log(sigma * sqrt(2*pi)), dim = data_size
     Z = data_size * np.log(sigma * np.sqrt(np.pi * 2))
     return E-Z
+
+def conv2d(inputs, num_outputs, kernel_size, scope, norm=True,
+           d_format='NHWC'):
+    outputs = tf.contrib.layers.conv2d(
+        inputs, num_outputs, kernel_size, scope=scope,
+        data_format=d_format, activation_fn=None, biases_initializer=None)
+    if norm:
+        outputs = tf.contrib.layers.batch_norm(
+            outputs, decay=0.9, center=True, activation_fn=tf.nn.relu,
+            updates_collections=None, epsilon=1e-5, scope=scope+'/batch_norm',
+            data_format=d_format)
+    else:
+        outputs = tf.nn.relu(outputs, name=scope+'/relu')
+    return outputs
+
+def dilated_conv(inputs, out_num, kernel_size, scope, d_format='NHWC', Not_last = True):
+    axis = (d_format.index('H'), d_format.index('W'))
+    conv0 = conv2d(inputs, out_num, kernel_size, scope+'/conv0')
+    conv1 = conv2d(conv0, out_num, kernel_size, scope+'/conv1')
+    dilated_conv0 = dilate_tensor(conv0, axis, 0, 0, scope+'/dialte_conv0')
+    dilated_conv1 = dilate_tensor(conv1, axis, 1, 1, scope+'/dialte_conv1')
+    conv1 = tf.add(dilated_conv0, dilated_conv1, scope+'/add1')
+    with tf.variable_scope(scope+'/conv2'):
+        shape = list(kernel_size) + [out_num, out_num]
+        weights = tf.get_variable(
+            'weights', shape, initializer=tf.truncated_normal_initializer())
+        weights = tf.multiply(weights, get_mask(shape, scope))
+        strides = [1, 1, 1, 1]
+        conv2 = tf.nn.conv2d(conv1, weights, strides, padding='SAME',
+                             data_format=d_format)
+    outputs = tf.add(conv1, conv2, name=scope+'/add2')
+    if Not_last:
+        return tf.contrib.layers.batch_norm(
+            outputs, decay=0.9, activation_fn=prelu, updates_collections=None,
+            epsilon=1e-5, scope=scope+'/batch_norm', data_format=d_format)
+    else:
+        return tf.nn.sigmoid(outputs)
+
+def get_mask(shape, scope):
+    new_shape = (shape[0]*shape[1], shape[2], shape[3])
+    mask = np.ones(new_shape, dtype=np.float32)
+    for i in range(0, new_shape[0], 2):
+        mask[i, :, :] = 0
+    mask = np.reshape(mask, shape, 'F')
+    return tf.constant(mask, dtype=tf.float32, name=scope+'/mask')
+
+def dilate_tensor(inputs, axis, row_shift, column_shift, scope):
+    rows = tf.unstack(inputs, axis=axis[0], name=scope+'/rowsunstack')
+    row_zeros = tf.zeros_like(
+        rows[0], dtype=tf.float32, name=scope+'/rowzeros')
+    for index in range(len(rows), 0, -1):
+        rows.insert(index-row_shift, row_zeros)
+    inputs = tf.stack(rows, axis=axis[0], name=scope+'/rowsstack')
+    columns = tf.unstack(
+        inputs, axis=axis[1], name=scope+'/columnsunstack')
+    columns_zeros = tf.zeros_like(
+        columns[0], dtype=tf.float32, name=scope+'/columnzeros')
+    for index in range(len(columns), 0, -1):
+        columns.insert(index-column_shift, columns_zeros)
+    inputs = tf.stack(
+        columns, axis=axis[1], name=scope+'/columnsstack')
+    return inputs
