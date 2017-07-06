@@ -191,19 +191,12 @@ def parzen_cpu_batch(x_batch, samples, sigma, batch_size, num_of_samples, data_s
     Z = data_size * np.log(sigma * np.sqrt(np.pi * 2))
     return E-Z
 
-def conv2d(inputs, num_outputs, kernel_size, scope, norm=True,
-           d_format='NHWC'):
+def conv2d(inputs, num_outputs, kernel_size, scope, d_format='NHWC'):
     outputs = tf.contrib.layers.conv2d(
         inputs, num_outputs, kernel_size, scope=scope,
         data_format=d_format, activation_fn=None, biases_initializer=None)
-    if norm:
-        outputs = tf.contrib.layers.batch_norm(
-            outputs, decay=0.9, center=True, activation_fn=tf.nn.relu,
-            updates_collections=None, epsilon=1e-5, scope=scope+'/batch_norm',
-            data_format=d_format)
-    else:
-        outputs = tf.nn.relu(outputs, name=scope+'/relu')
     return outputs
+
 
 def dilated_conv(inputs, out_num, kernel_size, scope, d_format='NHWC', Not_last = True):
     axis = (d_format.index('H'), d_format.index('W'))
