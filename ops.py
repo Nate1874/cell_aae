@@ -159,7 +159,7 @@ def conv2d(inputs, num_outputs, kernel_size, stride, scope, norm=True, ac_fn = p
             updates_collections=None, epsilon=1e-5, scope=scope+'/batch_norm',
             data_format=d_format)
     else:
-        outputs = prelu(outputs, name=scope+'/prelu')
+        outputs = prelu(outputs)
     return outputs
 
 
