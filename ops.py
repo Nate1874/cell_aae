@@ -114,6 +114,56 @@ def decoder_all(input_sensor, chan_out):
     print(output.get_shape())  # use sigmoid?
     return output
 
+def super_resolution(inputs, scope):
+    conv1 = conv2d(inputs, 64, 5, 1, scope+'/conv1', False)
+    residual1 = residual_block(conv1, 64, 3, scope+'/residual1')
+    residual2 = residual_block(residual1, 64, 3, scope+'/residual2')
+    residual3 = residual_block(residual2, 64, 3, scope+'/residual3')
+    residual4 = residual_block(residual3, 64, 3, scope+'/residual4')
+    residual5 = residual_block(residual4, 64, 3, scope+'/residual5')
+    conv2 = conv2d(residual5, 64, 3, 1, scope+'/conv2', True)
+    conv2 = conv2 + conv1
+    conv3 = conv2d(conv2, 256, 3, 1, scope+'/conv3', True)
+    conv5 = conv2d(conv3, 64, 3, 1, scope+'/conv5', False)
+    conv6 = conv2d(conv5, 3, 3, 1, scope+'/conv6', False)
+    result = tf.nn.sigmoid(conv6)
+    return result 
+
+def residual_block(incoming, num_outputs, kernel_size, scope, data_format = 'NHWC'):
+    conv1 = tf.contrib.layers.conv2d(
+        incoming, num_outputs, kernel_size, scope=scope+'/conv1',
+        data_format=data_format, activation_fn=None, biases_initializer=None)
+    conv1_bn = tf.contrib.layers.batch_norm(
+            conv1, decay=0.9, center=True, activation_fn=prelu,
+            updates_collections=None, epsilon=1e-5, scope=scope+'/batch_norm1',
+            data_format=data_format)
+    conv2 = tf.contrib.layers.conv2d(
+        conv1, num_outputs, kernel_size, scope=scope+'/conv2',
+        data_format=data_format, activation_fn=None, biases_initializer=None)
+    conv2_bn = tf.contrib.layers.batch_norm(
+            conv2, decay=0.9, center=True, activation_fn=None,
+            updates_collections=None, epsilon=1e-5, scope=scope+'/batch_norm2',
+            data_format=data_format)
+    incoming += conv2_bn
+    return tf.nn.sigmoid(incoming)
+
+
+def conv2d(inputs, num_outputs, kernel_size, stride, scope, norm=True, ac_fn = prelu, 
+           d_format='NHWC'):
+    outputs = tf.contrib.layers.conv2d(
+        inputs, num_outputs, kernel_size, scope=scope, stride=stride,
+        data_format=d_format, activation_fn=None, biases_initializer=None)
+    if norm:
+        outputs = tf.contrib.layers.batch_norm(
+            outputs, decay=0.9, center=True, activation_fn=ac_fn,
+            updates_collections=None, epsilon=1e-5, scope=scope+'/batch_norm',
+            data_format=d_format)
+    else:
+        outputs = prelu(outputs, name=scope+'/prelu')
+    return outputs
+
+
+
 def createAdversary(input_tensor):        
     output = tf.contrib.layers.fully_connected(input_tensor, 1024, scope='full1',
         activation_fn=lrelu) 
@@ -207,3 +257,38 @@ def parzen_cpu_batch(x_batch, samples, sigma, batch_size, num_of_samples, data_s
     # Z = dim * log(sigma * sqrt(2*pi)), dim = data_size
     Z = data_size * np.log(sigma * np.sqrt(np.pi * 2))
     return E-Z
+
+def get_ssim_loss(img1, img2, size=11, sigma=1.5):
+    img1s = tf.split(img1, img1.shape[-1].value, axis=3)
+    img2s = tf.split(img2, img2.shape[-1].value, axis=3)
+    window = fspecial_gauss(size, sigma)
+    K1 = 0.01
+    K2 = 0.03
+    L = 1
+    C1 = (K1 * L)**2
+    C2 = (K2 * L)**2
+    values = []
+    for index in range(img1.shape[-1].value):
+        mu1 = tf.nn.conv2d(img1s[index], window, strides=[1,1,1,1], padding='VALID')
+        mu2 = tf.nn.conv2d(img2s[index], window, strides=[1,1,1,1], padding='VALID')
+        mu1_sq = mu1 * mu1
+        mu2_sq = mu2 * mu2
+        mu1_mu2 = mu1 * mu2
+        sigma1_sq = tf.nn.conv2d(img1s[index]*img1s[index], window, strides=[1,1,1,1], padding='VALID') - mu1_sq
+        sigma2_sq = tf.nn.conv2d(img2s[index]*img2s[index], window, strides=[1,1,1,1], padding='VALID') - mu2_sq
+        sigma12 = tf.nn.conv2d(img1s[index]*img2s[index], window, strides=[1,1,1,1], padding='VALID') - mu1_mu2
+        value = ((2 * mu1_mu2 + C1) * (2 * sigma12 + C2))/((mu1_sq + mu2_sq + C1)*
+                    (sigma1_sq + sigma2_sq + C2))
+        values.append(tf.reduce_mean(value))
+    return (1-tf.reduce_mean(values))/2
+
+def fspecial_gauss(size, sigma):
+    x_data, y_data = np.mgrid[-size//2 + 1:size//2 + 1, -size//2 + 1:size//2 + 1]
+    x_data = np.expand_dims(x_data, axis=-1)
+    x_data = np.expand_dims(x_data, axis=-1)
+    y_data = np.expand_dims(y_data, axis=-1)
+    y_data = np.expand_dims(y_data, axis=-1)
+    x = tf.constant(x_data, dtype=tf.float32)
+    y = tf.constant(y_data, dtype=tf.float32)
+    g = tf.exp(-((x**2 + y**2)/(2.0*sigma**2)))
+    return g / tf.reduce_sum(g)
