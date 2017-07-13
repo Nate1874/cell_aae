@@ -89,10 +89,11 @@ class AAE(object):
             self.latent_z_r = encoder_x_r(intermediate_out_r, self.conf.hidden_size)
         with tf.variable_scope('DEC_R') as scope:
             self.out_x_r = decoder_all(self.latent_z_r, self.chan_out_r) #reconstructed
-            self.out_x_r_super = super_resolution(self.out_x_r, scope='DEC_R')
+            self.out_x_r_super = super_resolution(self.out_x_r, self.chan_out_r)
             scope.reuse_variables()
             self.out_x_r_sampled = decoder_all(self.sampled_z_r, self.chan_out_r)
-            self.out_x_r_sampled_super =super_resolution(self.out_x_r_sampled, scope='DEC_R')
+            print('=========================',self.out_x_r_sampled.get_shape())
+            self.out_x_r_sampled_super =super_resolution(self.out_x_r_sampled, self.chan_out_r)
 
         with tf.variable_scope('ENCD_R') as scope:
             self.d_enc_out_p = createAdversary(self.sampled_z_r) #postive samples # V_gen_encdr
@@ -102,6 +103,7 @@ class AAE(object):
             output1 = createAdversary_Dec(self.input_r) # positive samples # v_obs_decdr # use the same one or draw another one?
             self.d_dec_out_p = Adv_dec_x_r(output1)
             scope.reuse_variables()
+            print('==============================',self.out_x_r_sampled_super.get_shape())
             output2 = createAdversary_Dec(self.out_x_r_sampled_super) #negative samples # v_gen_decdr 
             self.d_dec_out_n = Adv_dec_x_r(output2)
             output3 = createAdversary_Dec(self.out_x_r_super) # sample for autoencoder loss
@@ -111,12 +113,12 @@ class AAE(object):
         generated_latent = tf.random_normal([self.conf.batch_size,self.conf.hidden_size])
         with tf.variable_scope('DEC_R', reuse= True) as scope:
             self.generated_out= decoder_all(generated_latent, self.chan_out_r)
-            self.generated_out= super_resolution(self.generated_out, scope='DEC_R')
+            self.generated_out= super_resolution(self.generated_out, self.chan_out_r)
 
         # the loss for the top autoencoder
         self.decdr_loss = self.get_bce_loss(self.d_dec_out_p, tf.ones_like(self.d_dec_out_p)) + self.get_bce_loss(self.d_dec_out_n, tf.zeros_like(self.d_dec_out_n))
         self.encdr_loss = self.get_bce_loss(self.d_enc_out_p, tf.ones_like(self.d_enc_out_p)) + self.get_bce_loss(self.d_enc_out_n,  tf.zeros_like(self.d_enc_out_n))
-        self.rec_loss = self.get_bce_loss(self.out_x_r, self.input_r)+ get_ssim_loss(self.out_x_r_super, self.input_r)
+        self.rec_loss = (self.get_bce_loss(self.out_x_r, self.input_r)+ get_ssim_loss(self.out_x_r_super, self.input_r))/2
         self.encdr_loss_enc = self.get_bce_loss(self.d_enc_out_n, tf.ones_like(self.d_enc_out_n))
         self.decdr_loss_dec = self.get_bce_loss(self.d_dec_out_n, tf.ones_like(self.d_dec_out_n)) + self.get_bce_loss(self.d_dec_out_rec, tf.ones_like(self.d_dec_out_rec))
         self.encr_loss = self.rec_loss + self.conf.gamma_enc*self.encdr_loss_enc
@@ -132,11 +134,11 @@ class AAE(object):
         with tf.variable_scope('DEC_R_S') as scope:
             dec_input = tf.concat([self.latent_z_rs, self.latent_y, self.latent_s], 1)
             self.out_x_r_s = decoder_all(dec_input, self.chan_out_r_s) #x_r_s_head, reconstrcuted image
-            self.out_x_r_s_super = super_resolution(self.out_x_r_s, scope='DEC_R_S')
+            self.out_x_r_s_super = super_resolution(self.out_x_r_s, self.chan_out_r_s)
             scope.reuse_variables()
             dec_inpt_gen = tf.concat([self.latent_z_rs, self.latent_y, self.sampled_z_s],1)
             self.out_x_rs_gen = decoder_all(dec_inpt_gen, self.chan_out_r_s) # dec output using randomed z_s
-            self.out_x_rs_gen_super= super_resolution(self.out_x_rs_gen, scope= 'DEC_R_S')
+            self.out_x_rs_gen_super= super_resolution(self.out_x_rs_gen, self.chan_out_r_s)
         
         with tf.variable_scope('ENCD_R_S') as scope:
             self.d_encds_out_p = createAdversary(self.sampled_z_s) #positive samples. V_gen_encds
@@ -161,7 +163,7 @@ class AAE(object):
         gen_input_con= tf.concat([generated_latent_r,self.generated_y, generated_latent_s],1)
         with tf.variable_scope('DEC_R_S', reuse= True) as scope:
             self.generate_con_out = decoder_all(gen_input_con, self.chan_out_r_s)
-            self.generate_con_out = super_resolution(self.generate_con_out, scope= 'DEC_R_S')
+            self.generate_con_out = super_resolution(self.generate_con_out, self.chan_out_r_s)
 
         # the loss for the conditional auto encoder
         self.encdr_s_loss = self.get_bce_loss(self.d_encds_out_p, tf.ones_like(self.d_encds_out_p))+ \
@@ -171,7 +173,7 @@ class AAE(object):
             tf.ones([self.conf.batch_size, 1], tf.int32)], 1)
         self.decdr_s_loss = self.get_log_softmax(self.d_decds_out_p, self.y_head)+ \
             self.get_log_softmax(self.d_decds_out_n, self.y_gen)
-        self.rec_loss_rs = self.get_bce_loss(self.out_x_r_s_super, self.input_r_s)+ get_ssim_loss(self.out_x_r_s_super, self.input_r_s)
+        self.rec_loss_rs = self.get_bce_loss(self.out_x_r_s, self.input_r_s)+ get_ssim_loss(self.out_x_r_s_super, self.input_r_s)
         self.y_loss = self.get_log_softmax(self.latent_y_raw, self.input_y)
         print("===============================")
         print(self.y_loss.get_shape())
@@ -201,7 +203,7 @@ class AAE(object):
 
         with tf.variable_scope('DEC_R_S', reuse= True) as scope:
             self.test_out = decoder_all(gen_input_test, self.chan_out_r_s)
-            self.test_out = super_resolution(self.test_out, scope='DEC_R_S')
+            self.test_out = super_resolution(self.test_out, self.chan_out_r_s)
 
         
        
@@ -219,6 +221,9 @@ class AAE(object):
         out_ch1, out_ch2 = tf.split(self.out_x_r_super, num_or_size_splits=2, axis =3)
         summarys.append(tf.summary.image('output_channel_one', out_ch1, max_outputs = 10))
         summarys.append(tf.summary.image('output_channel_two', out_ch2, max_outputs = 10))
+        inter_ch1, inter_ch2 = tf.split(self.out_x_r, num_or_size_splits=2, axis =3)
+        summarys.append(tf.summary.image('inter_channel_one', inter_ch1, max_outputs = 10))
+        summarys.append(tf.summary.image('inter_channel_two', inter_ch2, max_outputs = 10))        
         summary = tf.summary.merge(summarys)
         return summary
 
@@ -276,7 +281,7 @@ class AAE(object):
         data = data_reader()
         iterations = 1
     #    epoch = 0
-        max_epoch = int (max(self.conf.max_epoch - self.conf.checkpoint/500, 0))
+        max_epoch = int (max(self.conf.max_epoch - self.conf.checkpoint/1000, 0))
 
         print("The epochs  for the first model to be trained is ", max_epoch)
 
@@ -302,7 +307,7 @@ class AAE(object):
             print("dec_r_loss is =====================",dec_r_loss)            
             self.generate_and_save()
         print("the first model is well trained, now the second one !================")
-        max_con_epoch = int (self.conf.max_con_epoch - (self.conf.checkpoint- 75000)/ 500)
+        max_con_epoch = int (self.conf.max_con_epoch - (self.conf.checkpoint- 75000)/ 1000)
         print("The epochs  for the first model to be trained is ", max_con_epoch)
         
         for epoch in range(max_con_epoch):
@@ -338,7 +343,7 @@ class AAE(object):
             sampled_y[:,i]=1
             imgs = self.sess.run(self.generate_con_out, {self.generated_y: sampled_y})
             for k in range(imgs.shape[0]):
-                imgs_folder = os.path.join(self.conf.working_directory, 'imgs_con_', str(i))
+                imgs_folder = os.path.join(self.conf.working_directory, 'imgs_con_super', str(i))
                 if not os.path.exists(imgs_folder):
                     os.makedirs(imgs_folder)   
                 imsave(os.path.join(imgs_folder,'%d.png') % k,
@@ -348,10 +353,10 @@ class AAE(object):
     def evaluate(self, data):        
      #   data = data_reader()
         pbar = ProgressBar()
-        imgs_original_folder = os.path.join(self.conf.working_directory, 'imgs_original')
+        imgs_original_folder = os.path.join(self.conf.working_directory, 'imgs_original_super')
         if not os.path.exists(imgs_original_folder):
             os.makedirs(imgs_original_folder)
-        imgs_test_folder = os.path.join(self.conf.working_directory, 'imgs_test')
+        imgs_test_folder = os.path.join(self.conf.working_directory, 'imgs_test_super')
         if not os.path.exists(imgs_test_folder):
             os.makedirs(imgs_test_folder)
         for i in pbar(range(self.conf.max_test_epoch)):
@@ -382,7 +387,7 @@ class AAE(object):
     def generate_and_save(self):
         imgs = self.sess.run(self.generated_out)
         for k in range(imgs.shape[0]):
-            imgs_folder = os.path.join(self.conf.working_directory, 'imgs')
+            imgs_folder = os.path.join(self.conf.working_directory, 'imgs_super')
             if not os.path.exists(imgs_folder):
                 os.makedirs(imgs_folder)      
             res= np.zeros([imgs.shape[1],imgs.shape[2],3])         

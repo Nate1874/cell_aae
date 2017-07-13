@@ -8,8 +8,8 @@ from aae import AAE
 
 def configure():
     flags = tf.app.flags
-    flags.DEFINE_integer("batch_size", 10, "batch size")
-    flags.DEFINE_integer("updates_per_epoch", 500, "number of updates per epoch")
+    flags.DEFINE_integer("batch_size", 5, "batch size")
+    flags.DEFINE_integer("updates_per_epoch", 1000, "number of updates per epoch")
     flags.DEFINE_integer("max_epoch", 150, "max epoch for first step training")
     flags.DEFINE_integer("max_con_epoch", 220, "max epoch for conditional part training")
     flags.DEFINE_integer("max_generated_imgs", 200, "max generated imgs for each input")
@@ -53,7 +53,7 @@ def main(_):
         getattr(model,args.action)()
 
 if __name__ == "__main__":
-    os.environ['CUDA_VISIBLE_DEVICES'] = '8'
+    os.environ['CUDA_VISIBLE_DEVICES'] = '1'
     tf.app.run()
 
 

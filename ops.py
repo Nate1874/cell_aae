@@ -5,8 +5,8 @@ conv_size = 4
 deconv_size = 4
 ndf= 64
 
-def prelu(_x):  # code from https://stackoverflow.com/questions/39975676/how-to-implement-prelu-activation-in-tensorflow
-    alphas = tf.get_variable('alpha', _x.get_shape()[-1],
+def prelu(_x, scope='prelu/'):  # code from https://stackoverflow.com/questions/39975676/how-to-implement-prelu-activation-in-tensorflow
+    alphas = tf.get_variable(scope+'alpha', _x.get_shape()[-1],
             initializer=tf.constant_initializer(0.0),
             dtype=tf.float32)
     pos = tf.nn.relu(_x)
@@ -114,18 +114,28 @@ def decoder_all(input_sensor, chan_out):
     print(output.get_shape())  # use sigmoid?
     return output
 
-def super_resolution(inputs, scope):
-    conv1 = conv2d(inputs, 64, 5, 1, scope+'/conv1', False)
-    residual1 = residual_block(conv1, 64, 3, scope+'/residual1')
-    residual2 = residual_block(residual1, 64, 3, scope+'/residual2')
-    residual3 = residual_block(residual2, 64, 3, scope+'/residual3')
-    residual4 = residual_block(residual3, 64, 3, scope+'/residual4')
-    residual5 = residual_block(residual4, 64, 3, scope+'/residual5')
-    conv2 = conv2d(residual5, 64, 3, 1, scope+'/conv2', True)
+def super_resolution(inputs , out_ch):
+    conv1 = conv2d(inputs, 32, 5, 1, '/conv1', False) # or use false?
+    print('conv1======================', conv1.get_shape())
+    residual1 = residual_block(conv1, 32, 3, '/residual1')
+    print('residual1======================', residual1.get_shape())
+    residual2 = residual_block(residual1, 32, 3, '/residual2')
+    print('residual2======================', residual2.get_shape())
+    residual3 = residual_block(residual2, 32, 3, '/residual3')
+    print('residual3======================', residual3.get_shape())
+    residual4 = residual_block(residual3, 32, 3, '/residual4')
+    print('residual4======================', residual4.get_shape())
+    residual5 = residual_block(residual4, 32, 3, '/residual5')
+    print('residual5======================', residual5.get_shape())
+    conv2 = conv2d(residual5, 32, 3, 1, '/conv2', True)
+    print('conv2======================', conv2.get_shape())
     conv2 = conv2 + conv1
-    conv3 = conv2d(conv2, 256, 3, 1, scope+'/conv3', True)
-    conv5 = conv2d(conv3, 64, 3, 1, scope+'/conv5', False)
-    conv6 = conv2d(conv5, 3, 3, 1, scope+'/conv6', False)
+    conv3 = conv2d(conv2, 128, 3, 1, '/conv3', True)
+    print('conv3======================', conv3.get_shape())
+    conv5 = conv2d(conv3, 32, 3, 1, '/conv5', False)
+    print('conv5======================', conv5.get_shape())
+    conv6 = conv2d(conv5, out_ch, 3, 1, '/conv6', False)
+    print('conv6======================', conv6.get_shape())
     result = tf.nn.sigmoid(conv6)
     return result 
 
@@ -145,7 +155,7 @@ def residual_block(incoming, num_outputs, kernel_size, scope, data_format = 'NHW
             updates_collections=None, epsilon=1e-5, scope=scope+'/batch_norm2',
             data_format=data_format)
     incoming += conv2_bn
-    return tf.nn.sigmoid(incoming)
+    return prelu(incoming,scope)
 
 
 def conv2d(inputs, num_outputs, kernel_size, stride, scope, norm=True, ac_fn = prelu, 
@@ -159,7 +169,7 @@ def conv2d(inputs, num_outputs, kernel_size, stride, scope, norm=True, ac_fn = p
             updates_collections=None, epsilon=1e-5, scope=scope+'/batch_norm',
             data_format=d_format)
     else:
-        outputs = prelu(outputs)
+        outputs = prelu(outputs,scope)
     return outputs
 
 
