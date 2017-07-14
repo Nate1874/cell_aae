@@ -9,6 +9,8 @@ from data_reader import data_reader
 from progressbar import ETA, Bar, Percentage, ProgressBar
 from scipy.misc import imsave, imread
 from data_reader import data_reader
+import h5py
+import time
 
 class AAE(object):
 
@@ -104,10 +106,14 @@ class AAE(object):
             output3 = createAdversary_Dec(self.out_x_r) # sample for autoencoder loss
             self.d_dec_out_rec = Adv_dec_x_r(output3)
             
-            
-        generated_latent = tf.random_normal([self.conf.batch_size,self.conf.hidden_size])
+        self.generated_latent = tf.placeholder(tf.float32,[None, self.conf.hidden_size])
+    #    generated_latent = tf.random_normal([self.conf.batch_size,self.conf.hidden_size])
+        with tf.variable_scope('ENC_R', reuse= True) as scope:
+            intermediate_out_r = encoder_all(self.input_r)
+            self.latent_z_r_for_save = encoder_x_r(intermediate_out_r, self.conf.hidden_size)
+
         with tf.variable_scope('DEC_R', reuse= True) as scope:
-            self.generated_out= decoder_all(generated_latent, self.chan_out_r)
+            self.generated_out= decoder_all(self.generated_latent, self.chan_out_r)
 
         # the loss for the top autoencoder
         self.decdr_loss = self.get_bce_loss(self.d_dec_out_p, tf.ones_like(self.d_dec_out_p)) + self.get_bce_loss(self.d_dec_out_n, tf.zeros_like(self.d_dec_out_n))
@@ -297,6 +303,12 @@ class AAE(object):
         max_con_epoch = int (self.conf.max_con_epoch - (self.conf.checkpoint- 75000)/ 500)
         print("The epochs  for the first model to be trained is ", max_con_epoch)
         
+    #    self.save_all_z_r()
+    #    
+        self.generate_and_save()
+        time.sleep(3600)
+        print("===============================================end it")
+
         for epoch in range(max_con_epoch):
             pbar = ProgressBar()
             for i in pbar(range(self.conf.updates_per_epoch)):
@@ -321,6 +333,29 @@ class AAE(object):
         self.evaluate(data)
 
 
+
+    def save_all_z_r(self):
+        print("Now save all the z_r information====================")
+        images_size=6080
+        data = data_reader()
+        shape = (256, 256)
+
+        dataset = h5py.File('/tempspace/hyuan/allen_data/training_with_r.h5', 'w')
+        dataset.create_dataset('X', (images_size, 256, 256, 3), dtype='f')
+        dataset.create_dataset('Y', (images_size, 10), dtype='int32')
+        dataset.create_dataset('R', (images_size, 16), dtype='f')
+        pbar = ProgressBar()
+        for idx in range(608):
+            x, y= data.get_next_h5()
+            x_r = data.extract(x)
+            feed_dict= {self.test_input:x_r}
+            z_r = self.sess.run(self.z_r_test, feed_dict =feed_dict)
+            print(z_r.shape)
+            print(z_r[0])
+            for bidx in range(self.conf.batch_size):
+                dataset['X'][idx*10+bidx], dataset['Y'][idx*10+bidx], dataset['R'][idx*10+bidx] = x[bidx], y[bidx], z_r[bidx]
+        dataset.close()
+        print('all z_r generated and saved========================')
     
 
     def generate_con_image(self):
@@ -340,20 +375,22 @@ class AAE(object):
     def evaluate(self, data):        
      #   data = data_reader()
         pbar = ProgressBar()
-        imgs_original_folder = os.path.join(self.conf.working_directory, 'imgs_original')
+        imgs_original_folder = os.path.join(self.conf.working_directory, 'imgs_original_try')
         if not os.path.exists(imgs_original_folder):
             os.makedirs(imgs_original_folder)
-        imgs_test_folder = os.path.join(self.conf.working_directory, 'imgs_test')
+        imgs_test_folder = os.path.join(self.conf.working_directory, 'imgs_test_try')
         if not os.path.exists(imgs_test_folder):
             os.makedirs(imgs_test_folder)
         for i in pbar(range(self.conf.max_test_epoch)):
-            x, y = data.next_test_batch(self.conf.batch_size)
+            x, y = data.next_batch(self.conf.batch_size)
+          #  x, y = data.get_next_h5()
             x_extracted = data.extract(x)
      #       print("x==============================", x.shape)
      #       print("x_ex============================", x_extracted.shape)
             y_label  = np.argmax(y, axis= 1)
-            for j in range (self.conf.max_generated_imgs):
-                output_test, summary = self.sess.run([self.test_out, self.test_summary], feed_dict={self.test_input: x_extracted, self.test_y: y, self.test_label: x})
+            for j in range (5):
+                output_test, summary, z_r_test = self.sess.run([self.test_out, self.test_summary, self.z_r_test], feed_dict={self.test_input: x_extracted, self.test_y: y, self.test_label: x})
+                print(z_r_test)
                 for k in range(output_test.shape[0]):                    
                     # res = np.ones([self.conf.height, self.conf.width*3 +4, 3])
                     # res[:,0:self.conf.width,:]= x[k,:,:,:]
@@ -372,15 +409,19 @@ class AAE(object):
 
     
     def generate_and_save(self):
-        imgs = self.sess.run(self.generated_out)
+        data=data_reader()
+        x,y,r=data.next_batch(5)
+        imgs = self.sess.run(self.generated_out,feed_dict= {self.generated_latent:r})
         for k in range(imgs.shape[0]):
-            imgs_folder = os.path.join(self.conf.working_directory, 'imgs')
+            imgs_folder = os.path.join(self.conf.working_directory, 'imgs_try')
             if not os.path.exists(imgs_folder):
                 os.makedirs(imgs_folder)      
             res= np.zeros([imgs.shape[1],imgs.shape[2],3])         
             res[:,:,0]=imgs[k,:,:,0]
             res[:,:,1]= 0
-            res[:,:,2]=imgs[k,:,:,1]                
+            res[:,:,2]=imgs[k,:,:,1]   
+            imsave(os.path.join(imgs_folder,'%d_ori.png') % k,
+                x[k])                         
             imsave(os.path.join(imgs_folder,'%d.png') % k,
                 res)
             imsave(os.path.join(imgs_folder,'%d_ch0.png') % k,
