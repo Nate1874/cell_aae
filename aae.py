@@ -83,46 +83,48 @@ class AAE(object):
         self.input_y = tf.placeholder(tf.int32,[None,self.conf.n_class])
 
         self.input_extracted = tf.placeholder(tf.float32,[None, self.conf.height, self.conf.width, 2])
+    
+        self.input_r = tf.placeholder(tf.float32,[None, self.conf.hidden_size])
     #    self.sampled_x_r = tf.placeholder(tf.float32,[None, self.height, self.width, 2])
-        with tf.variable_scope('ENC_R') as scope:
-            intermediate_out_r = encoder_all(self.input_r)
-            self.latent_z_r = encoder_x_r(intermediate_out_r, self.conf.hidden_size)
-        with tf.variable_scope('DEC_R') as scope:
-            self.out_x_r = decoder_all(self.latent_z_r, self.chan_out_r) #reconstructed
-            self.out_x_r_super = super_resolution(self.out_x_r, self.chan_out_r)
-            scope.reuse_variables()
-            self.out_x_r_sampled = decoder_all(self.sampled_z_r, self.chan_out_r)
-            print('=========================',self.out_x_r_sampled.get_shape())
-            self.out_x_r_sampled_super =super_resolution(self.out_x_r_sampled, self.chan_out_r)
+        # with tf.variable_scope('ENC_R') as scope:
+        #     intermediate_out_r = encoder_all(self.input_r)
+        #     self.latent_z_r = encoder_x_r(intermediate_out_r, self.conf.hidden_size)
+        # with tf.variable_scope('DEC_R') as scope:
+        #     self.out_x_r = decoder_all(self.latent_z_r, self.chan_out_r) #reconstructed
+        #     self.out_x_r_super = super_resolution(self.out_x_r, self.chan_out_r)
+        #     scope.reuse_variables()
+        #     self.out_x_r_sampled = decoder_all(self.sampled_z_r, self.chan_out_r)
+        #     print('=========================',self.out_x_r_sampled.get_shape())
+        #     self.out_x_r_sampled_super =super_resolution(self.out_x_r_sampled, self.chan_out_r)
 
-        with tf.variable_scope('ENCD_R') as scope:
-            self.d_enc_out_p = createAdversary(self.sampled_z_r) #postive samples # V_gen_encdr
-            scope.reuse_variables()
-            self.d_enc_out_n = createAdversary(self.latent_z_r)#negative samples # v_obs_encdr
-        with tf.variable_scope('DECD_R') as scope:
-            output1 = createAdversary_Dec(self.input_r) # positive samples # v_obs_decdr # use the same one or draw another one?
-            self.d_dec_out_p = Adv_dec_x_r(output1)
-            scope.reuse_variables()
-            print('==============================',self.out_x_r_sampled_super.get_shape())
-            output2 = createAdversary_Dec(self.out_x_r_sampled_super) #negative samples # v_gen_decdr 
-            self.d_dec_out_n = Adv_dec_x_r(output2)
-            output3 = createAdversary_Dec(self.out_x_r_super) # sample for autoencoder loss
-            self.d_dec_out_rec = Adv_dec_x_r(output3)
+        # with tf.variable_scope('ENCD_R') as scope:
+        #     self.d_enc_out_p = createAdversary(self.sampled_z_r) #postive samples # V_gen_encdr
+        #     scope.reuse_variables()
+        #     self.d_enc_out_n = createAdversary(self.latent_z_r)#negative samples # v_obs_encdr
+        # with tf.variable_scope('DECD_R') as scope:
+        #     output1 = createAdversary_Dec(self.input_r) # positive samples # v_obs_decdr # use the same one or draw another one?
+        #     self.d_dec_out_p = Adv_dec_x_r(output1)
+        #     scope.reuse_variables()
+        #     print('==============================',self.out_x_r_sampled_super.get_shape())
+        #     output2 = createAdversary_Dec(self.out_x_r_sampled_super) #negative samples # v_gen_decdr 
+        #     self.d_dec_out_n = Adv_dec_x_r(output2)
+        #     output3 = createAdversary_Dec(self.out_x_r_super) # sample for autoencoder loss
+        #     self.d_dec_out_rec = Adv_dec_x_r(output3)
             
             
-        generated_latent = tf.random_normal([self.conf.batch_size,self.conf.hidden_size])
-        with tf.variable_scope('DEC_R', reuse= True) as scope:
-            self.generated_out= decoder_all(generated_latent, self.chan_out_r)
-            self.generated_out= super_resolution(self.generated_out, self.chan_out_r)
+        # generated_latent = tf.random_normal([self.conf.batch_size,self.conf.hidden_size])
+        # with tf.variable_scope('DEC_R', reuse= True) as scope:
+        #     self.generated_out= decoder_all(generated_latent, self.chan_out_r)
+        #     self.generated_out= super_resolution(self.generated_out, self.chan_out_r)
 
-        # the loss for the top autoencoder
-        self.decdr_loss = self.get_bce_loss(self.d_dec_out_p, tf.ones_like(self.d_dec_out_p)) + self.get_bce_loss(self.d_dec_out_n, tf.zeros_like(self.d_dec_out_n))
-        self.encdr_loss = self.get_bce_loss(self.d_enc_out_p, tf.ones_like(self.d_enc_out_p)) + self.get_bce_loss(self.d_enc_out_n,  tf.zeros_like(self.d_enc_out_n))
-        self.rec_loss = (self.get_bce_loss(self.out_x_r, self.input_r)+ get_ssim_loss(self.out_x_r_super, self.input_r))/2
-        self.encdr_loss_enc = self.get_bce_loss(self.d_enc_out_n, tf.ones_like(self.d_enc_out_n))
-        self.decdr_loss_dec = self.get_bce_loss(self.d_dec_out_n, tf.ones_like(self.d_dec_out_n)) + self.get_bce_loss(self.d_dec_out_rec, tf.ones_like(self.d_dec_out_rec))
-        self.encr_loss = self.rec_loss + self.conf.gamma_enc*self.encdr_loss_enc
-        self.decr_loss = self.rec_loss + self.conf.gamma_dec*self.decdr_loss_dec
+        # # the loss for the top autoencoder
+        # self.decdr_loss = self.get_bce_loss(self.d_dec_out_p, tf.ones_like(self.d_dec_out_p)) + self.get_bce_loss(self.d_dec_out_n, tf.zeros_like(self.d_dec_out_n))
+        # self.encdr_loss = self.get_bce_loss(self.d_enc_out_p, tf.ones_like(self.d_enc_out_p)) + self.get_bce_loss(self.d_enc_out_n,  tf.zeros_like(self.d_enc_out_n))
+        # self.rec_loss = (self.get_bce_loss(self.out_x_r, self.input_r)+ get_ssim_loss(self.out_x_r_super, self.input_r))/2
+        # self.encdr_loss_enc = self.get_bce_loss(self.d_enc_out_n, tf.ones_like(self.d_enc_out_n))
+        # self.decdr_loss_dec = self.get_bce_loss(self.d_dec_out_n, tf.ones_like(self.d_dec_out_n)) + self.get_bce_loss(self.d_dec_out_rec, tf.ones_like(self.d_dec_out_rec))
+        # self.encr_loss = self.rec_loss + self.conf.gamma_enc*self.encdr_loss_enc
+        # self.decr_loss = self.rec_loss + self.conf.gamma_dec*self.decdr_loss_dec
         print("finish building the first autoencoder===========Now the conditional one")
         #build the conditional auto encoder
         with tf.variable_scope('ENC_R_S') as scope:

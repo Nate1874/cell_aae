@@ -10,8 +10,8 @@ def configure():
     flags = tf.app.flags
     flags.DEFINE_integer("batch_size", 5, "batch size")
     flags.DEFINE_integer("updates_per_epoch", 1000, "number of updates per epoch")
-    flags.DEFINE_integer("max_epoch", 150, "max epoch for first step training")
-    flags.DEFINE_integer("max_con_epoch", 220, "max epoch for conditional part training")
+    flags.DEFINE_integer("max_epoch", 0, "max epoch for first step training")
+    flags.DEFINE_integer("max_con_epoch", 300, "max epoch for conditional part training")
     flags.DEFINE_integer("max_generated_imgs", 200, "max generated imgs for each input")
     flags.DEFINE_integer("max_test_epoch", 107, "max  test epoch")
     flags.DEFINE_integer("summary_step", 10, "save summary per #summary_step iters")
@@ -30,9 +30,9 @@ def configure():
  #   flags.DEFINE_string("model_name", 'low_rank', "vanilla or low_rank")
     flags.DEFINE_integer("height", 256, "height of image")
     flags.DEFINE_integer("width", 256, "width of image")
-    flags.DEFINE_string("modeldir", './modeldir_super', "the model directory")
-    flags.DEFINE_string("logdir", './logdir_super', "the log directory")
-    flags.DEFINE_string("sampledir", './sampledir_super', "the sample directory")
+    flags.DEFINE_string("modeldir", './modeldir_parallel', "the model directory")
+    flags.DEFINE_string("logdir", './logdir_parallel', "the log directory")
+    flags.DEFINE_string("sampledir", './sampledir_parallel', "the sample directory")
     flags.FLAGS.__dict__['__parsed'] = False
     return flags.FLAGS
 
@@ -53,7 +53,7 @@ def main(_):
         getattr(model,args.action)()
 
 if __name__ == "__main__":
-    os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
     tf.app.run()
 
 
