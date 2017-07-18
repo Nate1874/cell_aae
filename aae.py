@@ -31,24 +31,24 @@ class AAE(object):
         self.build_network()
         variables = tf.trainable_variables()
         #variables for the first autoencoder
-        self.var_enc_r = [var for var in variables if var.name.startswith('ENC_R')]
-        self.var_encd_r = [var for var in variables if var.name.startswith('ENCD_R')]
-        self.var_dec_r = [var for var in variables if var.name.startswith('DEC_R')]
-        self.var_decd_r = [var for var in variables if var.name.startswith('DECD_R')]
+        # self.var_enc_r = [var for var in variables if var.name.startswith('ENC_R')]
+        # self.var_encd_r = [var for var in variables if var.name.startswith('ENCD_R')]
+        # self.var_dec_r = [var for var in variables if var.name.startswith('DEC_R')]
+        # self.var_decd_r = [var for var in variables if var.name.startswith('DECD_R')]
         #variables for the conditional autoencoder
         self.var_enc_r_s = [var for var in variables if var.name.startswith('ENC_R_S')]
         self.var_encd_r_s = [var for var in variables if var.name.startswith('ENCD_R_S')]
         self.var_dec_r_s = [var for var in variables if var.name.startswith('DEC_R_S')]
         self.var_decd_r_s = [var for var in variables if var.name.startswith('DECD_R_S')]
         # opt for the first autoencoder
-        self.train_decd_r = tf.contrib.layers.optimize_loss(self.decdr_loss, tf.contrib.framework.get_or_create_global_step(), 
-            learning_rate=self.conf.learning_rate, optimizer='Adam', variables=self.var_decd_r, update_ops=[])
-        self.train_encd_r = tf.contrib.layers.optimize_loss(self.encdr_loss, tf.contrib.framework.get_or_create_global_step(), 
-            learning_rate=self.conf.learning_rate, optimizer='Adam', variables=self.var_encd_r, update_ops=[])
-        self.train_enc_r = tf.contrib.layers.optimize_loss(self.encr_loss, tf.contrib.framework.get_or_create_global_step(), 
-            learning_rate=self.conf.learning_rate, optimizer='Adam', variables=self.var_enc_r, update_ops=[])
-        self.train_dec_r = tf.contrib.layers.optimize_loss(self.decr_loss, tf.contrib.framework.get_or_create_global_step(), 
-            learning_rate=self.conf.learning_rate, optimizer='Adam', variables=self.var_dec_r, update_ops=[])
+        # self.train_decd_r = tf.contrib.layers.optimize_loss(self.decdr_loss, tf.contrib.framework.get_or_create_global_step(), 
+        #     learning_rate=self.conf.learning_rate, optimizer='Adam', variables=self.var_decd_r, update_ops=[])
+        # self.train_encd_r = tf.contrib.layers.optimize_loss(self.encdr_loss, tf.contrib.framework.get_or_create_global_step(), 
+        #     learning_rate=self.conf.learning_rate, optimizer='Adam', variables=self.var_encd_r, update_ops=[])
+        # self.train_enc_r = tf.contrib.layers.optimize_loss(self.encr_loss, tf.contrib.framework.get_or_create_global_step(), 
+        #     learning_rate=self.conf.learning_rate, optimizer='Adam', variables=self.var_enc_r, update_ops=[])
+        # self.train_dec_r = tf.contrib.layers.optimize_loss(self.decr_loss, tf.contrib.framework.get_or_create_global_step(), 
+        #     learning_rate=self.conf.learning_rate, optimizer='Adam', variables=self.var_dec_r, update_ops=[])
         # opt for the con autoencoder
         self.train_decd_r_s = tf.contrib.layers.optimize_loss(self.decdr_s_loss, tf.contrib.framework.get_or_create_global_step(), 
             learning_rate=self.conf.learning_rate, optimizer='Adam', variables=self.var_decd_r_s, update_ops=[])
@@ -283,34 +283,34 @@ class AAE(object):
         data = data_reader()
         iterations = 1
     #    epoch = 0
-        max_epoch = int (max(self.conf.max_epoch - self.conf.checkpoint/1000, 0))
+        # max_epoch = int (max(self.conf.max_epoch - self.conf.checkpoint/1000, 0))
 
-        print("The epochs  for the first model to be trained is ", max_epoch)
+        # print("The epochs  for the first model to be trained is ", max_epoch)
 
-        for epoch in range(max_epoch):
-        #    pbar = ProgressBar()
-            for i in range(self.conf.updates_per_epoch):            
-                inputs, labels= data.next_batch(self.conf.batch_size)
-                inputs_only_r = data.extract(inputs)
-            #    sampled_zr = tf.random_normal([self.conf.batch_size,self.conf.hidden_size])
-                sampled_zr = np.random.normal(size= (self.conf.batch_size,self.conf.hidden_size))
-                feed_dict= {self.input_r:inputs_only_r, self.sampled_z_r: sampled_zr}
-                _, decd_r_loss, = self.sess.run([self.train_decd_r, self.decdr_loss], feed_dict= feed_dict)
-                _, encd_r_loss, = self.sess.run([self.train_encd_r, self.encdr_loss], feed_dict= feed_dict)
-                _, enc_r_loss = self.sess.run([self.train_enc_r, self.encr_loss], feed_dict =  feed_dict)
-                loss, _, dec_r_loss, summary = self.sess.run([self.decdr_loss_dec, self.train_dec_r, self.decr_loss, self.train_summary], feed_dict = feed_dict)
-                if iterations %self.conf.summary_step == 1:
-                    self.save_summary(summary, iterations+self.conf.checkpoint)
-                    print("summary_saved")
-                if iterations %self.conf.save_step == 0:
-                    self.save(iterations+self.conf.checkpoint)
-                iterations = iterations + 1
-            print("enc_r_loss is  ================", enc_r_loss)
-            print("dec_r_loss is =====================",dec_r_loss)            
-            self.generate_and_save()
-        print("the first model is well trained, now the second one !================")
-        max_con_epoch = int (self.conf.max_con_epoch - (self.conf.checkpoint- 75000)/ 1000)
-        print("The epochs  for the first model to be trained is ", max_con_epoch)
+        # for epoch in range(max_epoch):
+        # #    pbar = ProgressBar()
+        #     for i in range(self.conf.updates_per_epoch):            
+        #         inputs, labels= data.next_batch(self.conf.batch_size)
+        #         inputs_only_r = data.extract(inputs)
+        #     #    sampled_zr = tf.random_normal([self.conf.batch_size,self.conf.hidden_size])
+        #         sampled_zr = np.random.normal(size= (self.conf.batch_size,self.conf.hidden_size))
+        #         feed_dict= {self.input_r:inputs_only_r, self.sampled_z_r: sampled_zr}
+        #         _, decd_r_loss, = self.sess.run([self.train_decd_r, self.decdr_loss], feed_dict= feed_dict)
+        #         _, encd_r_loss, = self.sess.run([self.train_encd_r, self.encdr_loss], feed_dict= feed_dict)
+        #         _, enc_r_loss = self.sess.run([self.train_enc_r, self.encr_loss], feed_dict =  feed_dict)
+        #         loss, _, dec_r_loss, summary = self.sess.run([self.decdr_loss_dec, self.train_dec_r, self.decr_loss, self.train_summary], feed_dict = feed_dict)
+        #         if iterations %self.conf.summary_step == 1:
+        #             self.save_summary(summary, iterations+self.conf.checkpoint)
+        #             print("summary_saved")
+        #         if iterations %self.conf.save_step == 0:
+        #             self.save(iterations+self.conf.checkpoint)
+        #         iterations = iterations + 1
+        #     print("enc_r_loss is  ================", enc_r_loss)
+        #     print("dec_r_loss is =====================",dec_r_loss)            
+        #     self.generate_and_save()
+        # print("the first model is well trained, now the second one !================")
+        # max_con_epoch = int (self.conf.max_con_epoch - (self.conf.checkpoint- 75000)/ 1000)
+        # print("The epochs  for the first model to be trained is ", max_con_epoch)
         
         for epoch in range(max_con_epoch):
             pbar = ProgressBar()
