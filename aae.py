@@ -40,6 +40,7 @@ class AAE(object):
         self.var_encd_r_s = [var for var in variables if var.name.startswith('ENCD_R_S')]
         self.var_dec_r_s = [var for var in variables if var.name.startswith('DEC_R_S')]
         self.var_decd_r_s = [var for var in variables if var.name.startswith('DECD_R_S')]
+        self.var_dec_r_s_super = [var for var in variables if var.name.startswith('DEC_R_S_SUPER')]
         # opt for the first autoencoder
         # self.train_decd_r = tf.contrib.layers.optimize_loss(self.decdr_loss, tf.contrib.framework.get_or_create_global_step(), 
         #     learning_rate=self.conf.learning_rate, optimizer='Adam', variables=self.var_decd_r, update_ops=[])
@@ -59,22 +60,25 @@ class AAE(object):
             learning_rate=self.conf.learning_rate, optimizer='Adam', variables=self.var_enc_r_s, update_ops=[])
         self.train_dec_r_s = tf.contrib.layers.optimize_loss(self.decr_s_loss, tf.contrib.framework.get_or_create_global_step(), 
             learning_rate=self.conf.learning_rate, optimizer='Adam', variables=self.var_dec_r_s, update_ops=[])
+        
+        self.train_dec_r_s_super = tf.contrib.layers.optimize_loss(self.decr_super_loss, tf.contrib.framework.get_or_create_global_step(), 
+            learning_rate=self.conf.learning_rate, optimizer='Adam', variables=self.var_dec_r_s_super, update_ops=[])
     
   #      self.sess = tf.Session()
         self.sess.run(tf.global_variables_initializer())
         trainable_vars = tf.trainable_variables()
         self.saver = tf.train.Saver(var_list=trainable_vars, max_to_keep=0)
         self.writer = tf.summary.FileWriter(self.conf.logdir, self.sess.graph)
-        self.train_summary = self.config_summary()
+    #    self.train_summary = self.config_summary()
         self.train_con_summary =self.config_con_summary()
         self.test_summary = self.config_test_summary()
 
     def build_network(self):
 
         #build the first autoencoder
-        self.input_r = tf.placeholder(tf.float32,[None, self.conf.height, self.conf.width, 2])
+    #    self.input_r = tf.placeholder(tf.float32,[None, self.conf.height, self.conf.width, 2])
 
-        self.sampled_z_r = tf.placeholder(tf.float32,[None, self.conf.hidden_size])
+     #   self.sampled_z_r = tf.placeholder(tf.float32,[None, self.conf.hidden_size])
 
         self.input_r_s = tf.placeholder(tf.float32,[None, self.conf.height, self.conf.width, 3])
 
@@ -84,7 +88,7 @@ class AAE(object):
 
         self.input_extracted = tf.placeholder(tf.float32,[None, self.conf.height, self.conf.width, 2])
     
-        self.input_r = tf.placeholder(tf.float32,[None, self.conf.hidden_size])
+        self.input_latent_r = tf.placeholder(tf.float32,[None, self.conf.hidden_size])
     #    self.sampled_x_r = tf.placeholder(tf.float32,[None, self.height, self.width, 2])
         # with tf.variable_scope('ENC_R') as scope:
         #     intermediate_out_r = encoder_all(self.input_r)
@@ -136,12 +140,14 @@ class AAE(object):
         with tf.variable_scope('DEC_R_S') as scope:
             dec_input = tf.concat([self.latent_z_rs, self.latent_y, self.latent_s], 1)
             self.out_x_r_s = decoder_all(dec_input, self.chan_out_r_s) #x_r_s_head, reconstrcuted image
-            self.out_x_r_s_super = super_resolution(self.out_x_r_s, self.chan_out_r_s)
+     #       self.out_x_r_s_super = super_resolution(self.out_x_r_s, self.chan_out_r_s)
             scope.reuse_variables()
             dec_inpt_gen = tf.concat([self.latent_z_rs, self.latent_y, self.sampled_z_s],1)
             self.out_x_rs_gen = decoder_all(dec_inpt_gen, self.chan_out_r_s) # dec output using randomed z_s
-            self.out_x_rs_gen_super= super_resolution(self.out_x_rs_gen, self.chan_out_r_s)
-        
+     #       self.out_x_rs_gen_super= super_resolution(self.out_x_rs_gen, self.chan_out_r_s)
+        with tf.variable_scope('DEC_R_S_SUPER') as scope:
+            self.out_x_r_s_super = super_resolution(self.out_x_r_s, self.chan_out_r_s)
+
         with tf.variable_scope('ENCD_R_S') as scope:
             self.d_encds_out_p = createAdversary(self.sampled_z_s) #positive samples. V_gen_encds
             scope.reuse_variables()
@@ -150,14 +156,14 @@ class AAE(object):
             output1_con = createAdversary_Dec(self.input_r_s)
             self.d_decds_out_p = Adv_dec_x_r_s(output1_con, self.conf.n_class) # positive, Y_obs, original images
             scope.reuse_variables()
-            output2_con = createAdversary_Dec(self.out_x_rs_gen_super)
+            output2_con = createAdversary_Dec(self.out_x_rs_gen)
             self.d_decds_out_n =Adv_dec_x_r_s(output2_con, self.conf.n_class) #negative, Y_gen
-            output3_con = createAdversary_Dec(self.out_x_r_s_super)
+            output3_con = createAdversary_Dec(self.out_x_r_s)
             self.d_decds_out_recon = Adv_dec_x_r_s(output3_con, self.conf.n_class)
         
-        with tf.variable_scope('ENC_R', reuse= True) as scope:
-            inter_out_con = encoder_all(self.input_extracted)
-            self.z_r_con = encoder_x_r(inter_out_con, self.conf.hidden_size)
+        # with tf.variable_scope('ENC_R', reuse= True) as scope:
+        #     inter_out_con = encoder_all(self.input_extracted)
+        #     self.z_r_con = encoder_x_r(inter_out_con, self.conf.hidden_size)
             
         generated_latent_s = tf.random_normal([self.conf.batch_size,self.conf.hidden_size])
         generated_latent_r = tf.random_normal([self.conf.batch_size,self.conf.hidden_size])
@@ -165,7 +171,10 @@ class AAE(object):
         gen_input_con= tf.concat([generated_latent_r,self.generated_y, generated_latent_s],1)
         with tf.variable_scope('DEC_R_S', reuse= True) as scope:
             self.generate_con_out = decoder_all(gen_input_con, self.chan_out_r_s)
+        
+        with tf.variable_scope('DEC_R_S_SUPER', reuse= True) as scope:
             self.generate_con_out = super_resolution(self.generate_con_out, self.chan_out_r_s)
+        
 
         # the loss for the conditional auto encoder
         self.encdr_s_loss = self.get_bce_loss(self.d_encds_out_p, tf.ones_like(self.d_encds_out_p))+ \
@@ -175,12 +184,12 @@ class AAE(object):
             tf.ones([self.conf.batch_size, 1], tf.int32)], 1)
         self.decdr_s_loss = self.get_log_softmax(self.d_decds_out_p, self.y_head)+ \
             self.get_log_softmax(self.d_decds_out_n, self.y_gen)
-        self.rec_loss_rs = self.get_bce_loss(self.out_x_r_s, self.input_r_s)+ get_ssim_loss(self.out_x_r_s_super, self.input_r_s)
+        self.rec_loss_rs = self.get_bce_loss(self.out_x_r_s, self.input_r_s)
         self.y_loss = self.get_log_softmax(self.latent_y_raw, self.input_y)
-        print("===============================")
-        print(self.y_loss.get_shape())
-        self.zr_loss = self.get_mse_loss(self.latent_z_rs, self.z_r_con)  #MSE error
-        print(self.zr_loss.get_shape())
+        self.decr_super_loss = self.get_l1_loss(self.input_r_s, self.out_x_r_s_super) 
+
+        self.zr_loss = self.get_mse_loss(self.latent_z_rs, self.input_latent_r)  #MSE error
+
         self.encds_loss_enc = self.get_bce_loss(self.d_encds_out_n, tf.ones_like(self.d_encds_out_n))
         self.decdrs_loss_dec = self.get_log_softmax(self.d_decds_out_n, self.y_head) + \
             self.get_log_softmax(self.d_decds_out_recon, self.y_head)        
@@ -192,19 +201,16 @@ class AAE(object):
         self.test_input = tf.placeholder(tf.float32,[None, self.conf.height, self.conf.width, 2])
         self.test_label = tf.placeholder(tf.float32,[None, self.conf.height, self.conf.width, 3]) # desired results
         self.test_y = tf.placeholder(tf.int32,[None,self.conf.n_class])
+        self.test_r = tf.placeholder(tf.float32,[None, self.conf.hidden_size])
 
-
-
-        with tf.variable_scope('ENC_R', reuse= True) as scope:
-            inter_out_test = encoder_all(self.test_input)
-            self.z_r_test = encoder_x_r(inter_out_test, self.conf.hidden_size)
-        
         randomed_s_test = tf.random_normal([self.conf.batch_size,self.conf.hidden_size])
         self.test_y= tf.cast(self.test_y, tf.float32)
-        gen_input_test= tf.concat([self.z_r_test,self.test_y, randomed_s_test],1)
+        gen_input_test= tf.concat([self.test_r,self.test_y, randomed_s_test],1)
 
         with tf.variable_scope('DEC_R_S', reuse= True) as scope:
             self.test_out = decoder_all(gen_input_test, self.chan_out_r_s)
+
+        with tf.variable_scope('DEC_R_S_SUPER', reuse= True) as scope:
             self.test_out = super_resolution(self.test_out, self.chan_out_r_s)
 
         
@@ -240,7 +246,9 @@ class AAE(object):
         summarys.append(tf.summary.scalar('/decoder_loss_con', self.decdrs_loss_dec))
         summarys.append(tf.summary.scalar('/enc_adv_loss_con', self.encdr_s_loss))
         summarys.append(tf.summary.scalar('/dec_adv_loss_con', self.decdr_s_loss))
+        summarys.append(tf.summary.scalar('/l1_loss', self.decr_super_loss))
         summarys.append(tf.summary.image('input_con', self.input_r_s, max_outputs = 10))
+        summarys.append(tf.summary.image('inter_con', self.out_x_r_s, max_outputs = 10))
         summarys.append(tf.summary.image('output_con', self.out_x_r_s_super, max_outputs = 10))
         summary = tf.summary.merge(summarys)
 
@@ -266,6 +274,9 @@ class AAE(object):
 
     def get_mse_loss(self, x, y):
         return tf.losses.mean_squared_error(predictions= x, labels= y)
+
+    def get_l1_loss(self,x, y):
+        return tf.losses.absolute_difference(x, y, scope='l1_loss')
 
     def save(self, step):
         print('---->saving', step)
@@ -311,18 +322,20 @@ class AAE(object):
         # print("the first model is well trained, now the second one !================")
         # max_con_epoch = int (self.conf.max_con_epoch - (self.conf.checkpoint- 75000)/ 1000)
         # print("The epochs  for the first model to be trained is ", max_con_epoch)
-        
+        max_con_epoch = int (self.conf.max_con_epoch - (self.conf.checkpoint)/ 500)
+
         for epoch in range(max_con_epoch):
             pbar = ProgressBar()
             for i in pbar(range(self.conf.updates_per_epoch)):
-                inputs, labels = data.next_batch(self.conf.batch_size)
-                inputs_only_r = data.extract(inputs)
+                inputs, labels, latent_r = data.next_batch(self.conf.batch_size)
+             #   inputs_only_r = data.extract(inputs)
                 sampled_zs = np.random.normal(size= (self.conf.batch_size,self.conf.hidden_size))
                 feed_dict_1 = {self.input_r_s: inputs, self.input_y: labels, self.sampled_z_s:sampled_zs}
-                feed_dict_2 = {self.input_r_s: inputs, self.input_extracted:inputs_only_r, self.input_y: labels, self.sampled_z_s:sampled_zs}
+                feed_dict_2 = {self.input_r_s: inputs, self.input_latent_r:latent_r, self.input_y: labels, self.sampled_z_s:sampled_zs}
                 _ , encd_s_loss = self.sess.run([self.train_encd_r_s,self.encdr_s_loss], feed_dict= feed_dict_1)
                 _ , decd_s_loss = self.sess.run([self.train_decd_r_s, self.decdr_s_loss], feed_dict = feed_dict_1)
                 _ , enc_s_loss = self.sess.run([self.train_enc_r_s, self.encr_s_loss], feed_dict= feed_dict_2)
+                _ , decr_super_loss = self.sess.run([self.train_dec_r_s_super, self.decr_super_loss], feed_dict =feed_dict_2)
            #     _ = self.sess.run(self.decr_s_loss,feed_dict = feed_dict_2)
                 _ , dec_s_loss, summary_con = self.sess.run([self.train_dec_r_s, self.decr_s_loss, self.train_con_summary],feed_dict = feed_dict_2)
          #       _ , dec_s_loss = self.sess.run([self.train_dec_r_s, self.decr_s_loss],feed_dict = feed_dict_2)
@@ -345,7 +358,7 @@ class AAE(object):
             sampled_y[:,i]=1
             imgs = self.sess.run(self.generate_con_out, {self.generated_y: sampled_y})
             for k in range(imgs.shape[0]):
-                imgs_folder = os.path.join(self.conf.working_directory, 'imgs_con_super', str(i))
+                imgs_folder = os.path.join(self.conf.working_directory, 'imgs_con_parallel', str(i))
                 if not os.path.exists(imgs_folder):
                     os.makedirs(imgs_folder)   
                 imsave(os.path.join(imgs_folder,'%d.png') % k,
@@ -355,20 +368,20 @@ class AAE(object):
     def evaluate(self, data):        
      #   data = data_reader()
         pbar = ProgressBar()
-        imgs_original_folder = os.path.join(self.conf.working_directory, 'imgs_original_super')
+        imgs_original_folder = os.path.join(self.conf.working_directory, 'imgs_original_parallel')
         if not os.path.exists(imgs_original_folder):
             os.makedirs(imgs_original_folder)
-        imgs_test_folder = os.path.join(self.conf.working_directory, 'imgs_test_super')
+        imgs_test_folder = os.path.join(self.conf.working_directory, 'imgs_test_parallel')
         if not os.path.exists(imgs_test_folder):
             os.makedirs(imgs_test_folder)
         for i in pbar(range(self.conf.max_test_epoch)):
-            x, y = data.next_test_batch(self.conf.batch_size)
-            x_extracted = data.extract(x)
+            x, y, r = data.next_test_batch(self.conf.batch_size)
+     #       x_extracted = data.extract(x)
      #       print("x==============================", x.shape)
      #       print("x_ex============================", x_extracted.shape)
             y_label  = np.argmax(y, axis= 1)
             for j in range (self.conf.max_generated_imgs):
-                output_test, summary = self.sess.run([self.test_out, self.test_summary], feed_dict={self.test_input: x_extracted, self.test_y: y, self.test_label: x})
+                output_test, summary = self.sess.run([self.test_out, self.test_summary], feed_dict={self.test_input: x_extracted, self.test_r: r,  self.test_y: y, self.test_label: x})
                 for k in range(output_test.shape[0]):                    
                     # res = np.ones([self.conf.height, self.conf.width*3 +4, 3])
                     # res[:,0:self.conf.width,:]= x[k,:,:,:]
@@ -389,7 +402,7 @@ class AAE(object):
     def generate_and_save(self):
         imgs = self.sess.run(self.generated_out)
         for k in range(imgs.shape[0]):
-            imgs_folder = os.path.join(self.conf.working_directory, 'imgs_super')
+            imgs_folder = os.path.join(self.conf.working_directory, 'imgs_parallel')
             if not os.path.exists(imgs_folder):
                 os.makedirs(imgs_folder)      
             res= np.zeros([imgs.shape[1],imgs.shape[2],3])         

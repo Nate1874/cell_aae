@@ -36,7 +36,7 @@ class data_reader:
     def next_test_batch(self, batch_size):
         prev_idx = self.test_idx
         self.test_idx += batch_size
-        return self.images[prev_idx:self.test_idx], self.label[prev_idx: self.test_idx],self.z_r[prev_idx: self.test_idx]
+        return self.images[prev_idx:self.test_idx], self.label[prev_idx: self.test_idx], self.z_r[prev_idx: self.test_idx]
     #    return self.images[prev_idx:self.test_idx], self.label[prev_idx: self.test_idx]
 
 
