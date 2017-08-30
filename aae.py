@@ -376,7 +376,7 @@ class AAE(object):
             os.makedirs(imgs_test_folder)
         for i in pbar(range(self.conf.max_test_epoch)):
             x, y, r = data.next_test_batch(self.conf.batch_size)
-     #       x_extracted = data.extract(x)
+            x_extracted = data.extract(x)
      #       print("x==============================", x.shape)
      #       print("x_ex============================", x_extracted.shape)
             y_label  = np.argmax(y, axis= 1)
