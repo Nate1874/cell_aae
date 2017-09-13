@@ -54,6 +54,8 @@ class GAN(object):
         self.input_latent_r = tf.placeholder(tf.float32,[None, self.conf.hidden_size])
         self.input_x = tf.placeholder(tf.float32,[None, self.conf.height, self.conf.width, 3])
 
+        self.input_y= tf.cast(self.input_y, tf.float32)
+
         print("Start building the generator of the ConGAN========================")
         #build the conditional auto encoder
         with tf.variable_scope('Generator') as scope:
@@ -105,7 +107,7 @@ class GAN(object):
         
 
     def get_bce_loss(self, output_tensor, target_tensor, epsilon=1e-10):
-        return tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits= x, labels = y))
+        return tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits= output_tensor, labels = target_tensor))
    #     return tf.reduce_mean(-target_tensor * tf.log(output_tensor + epsilon) -(1.0 - target_tensor) * tf.log(1.0 - output_tensor + epsilon))
 
     def get_log_softmax(self, x, y):
@@ -140,11 +142,11 @@ class GAN(object):
                 inputs, labels, latent_r = data.next_batch(self.conf.batch_size)
              #   inputs_only_r = data.extract(inputs)
                 sampled_zs = np.random.normal(size= (self.conf.batch_size,self.conf.hidden_size))
-                feed_dict = {self.sampled_z_s: sampled_zs, self.input_y: labels, self.input_latent_r:latent_r, self.input_x= inputs}
+                feed_dict = {self.sampled_z_s: sampled_zs, self.input_y: labels, self.input_latent_r:latent_r, self.input_x: inputs}
                 _ , d_loss = self.sess.run([self.train_disc,self.dis_loss], feed_dict= feed_dict)
                 _ , g_loss, summary = self.sess.run([self.train_gen, self.gen_loss, self.train_summary], feed_dict = feed_dict)
                 if iterations %self.conf.summary_step == 1:
-                    self.save_summary(summary_con, iterations+self.conf.checkpoint)
+                    self.save_summary(summary, iterations+self.conf.checkpoint)
                 if iterations %self.conf.save_step == 0:
                     self.save(iterations+self.conf.checkpoint)
                 iterations = iterations +1

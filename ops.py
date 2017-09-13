@@ -3,7 +3,7 @@ import numpy as np
 
 conv_size = 4
 deconv_size = 4
-ndf= 64
+ndf= 32
 
 def prelu(_x, scope='prelu/'):  # code from https://stackoverflow.com/questions/39975676/how-to-implement-prelu-activation-in-tensorflow
     alphas = tf.get_variable(scope+'alpha', _x.get_shape()[-1],
@@ -28,12 +28,12 @@ def conv_cond_concat(x, y):
      x_shapes = x.get_shape()
      y_shapes = y.get_shape()
      return tf.concat([
-        x, y*tf.ones([x_shapes[0], x_shapes[1], x_shapes[2], y_shapes[3]])], 3)
+        x, y*tf.ones([y_shapes[0], x_shapes[1], x_shapes[2], y_shapes[3]])], 3)
 
 def generator(z_s, z_r, y, batch_size):
     cond = tf.concat([z_r, y], 1)
     z = tf.concat([cond, z_s], 1)
-    output = tf.contrib.layers.fully_connected(input_sensor,1024*4*4,scope='fully1',
+    output = tf.contrib.layers.fully_connected(z ,1024*4*4,scope='fully1',
         activation_fn=None, normalizer_fn=tf.contrib.layers.batch_norm,
         normalizer_params={'scale': True})
     print(output.get_shape())
@@ -41,8 +41,7 @@ def generator(z_s, z_r, y, batch_size):
     output = tf.transpose(output, perm=[0, 2, 3 ,1])
     print(output.get_shape())
     output = prelu(output)
-    print(output.get_shape())
-    cond = tf.reshape(cond,[batch_size, 1, 1, 10])
+    cond = tf.reshape(cond,[batch_size, 1, 1, 26])
     output = tf.contrib.layers.conv2d_transpose(    
         output, 1024, deconv_size, scope='deconv1', stride = 2, padding='SAME',
         activation_fn=prelu, normalizer_fn=tf.contrib.layers.batch_norm, 
@@ -73,19 +72,19 @@ def generator(z_s, z_r, y, batch_size):
         normalizer_params={'scale': True})
     print(output.get_shape())
     output = tf.contrib.layers.conv2d_transpose(
-        output, chan_out, deconv_size, scope='deconv6', stride=2, padding='SAME',
+        output, 3, deconv_size, scope='deconv6', stride=2, padding='SAME',
         activation_fn=tf.nn.sigmoid, normalizer_fn=None)
     print(output.get_shape())  # use sigmoid?
     return output
 
 def discriminator(input_X, z_r, y, batch_size, gan_noise=0.01):
     cond = tf.concat([z_r, y], 1)
-    cond_b = tf.reshape(cond,[batch_size, 1, 1, 10])
+    cond_b = tf.reshape(cond,[batch_size, 1, 1, 26])
     output = conv_cond_concat(input_X, cond_b)
     if gan_noise > 0:
         output = add_white_noise(output)
     output = tf.contrib.layers.conv2d(
-        input_tensor, ndf, conv_size, scope='convlayer1', stride =2, padding='SAME',
+        output, ndf, conv_size, scope='convlayer1', stride =2, padding='SAME',
         activation_fn=lrelu, normalizer_fn=tf.contrib.layers.batch_norm,
         normalizer_params={'scale': True})
     print(output.get_shape())
@@ -94,7 +93,7 @@ def discriminator(input_X, z_r, y, batch_size, gan_noise=0.01):
         activation_fn=lrelu, normalizer_fn=tf.contrib.layers.batch_norm,
         normalizer_params={'scale': True})
     print(output.get_shape())
-    output = conv_cond_concat(input_X, cond_b)
+    output = conv_cond_concat(output, cond_b)
     print(output.get_shape())
     output = tf.contrib.layers.conv2d(
         output, ndf*4, conv_size, scope='convlayer3', stride =2, padding='SAME',
@@ -108,8 +107,12 @@ def discriminator(input_X, z_r, y, batch_size, gan_noise=0.01):
     print(output.get_shape())
     output = tf.contrib.layers.flatten(output)
     print(output.get_shape())
+    output = tf.contrib.layers.fully_connected(output, 256, scope='full1',
+        activation_fn=tf.nn.sigmoid, normalizer_fn=tf.contrib.layers.batch_norm,
+        normalizer_params={'scale': True})    
     output = tf.concat([output, cond], 1)
-    output = tf.contrib.layers.fully_connected(output, 1, scope='full1',
+    print(output.get_shape())
+    output = tf.contrib.layers.fully_connected(output, 1, scope='full2',
         activation_fn = None)
     return output
 
