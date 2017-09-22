@@ -49,7 +49,7 @@ def generator(z_s, z_r, y, batch_size):
     print(output.get_shape())
     output = tf.contrib.layers.conv2d_transpose(
         output, 512, deconv_size, scope='deconv2', stride = 2, padding='SAME',
-        activation_fn=prelu, normalizer_fn=tf.contrib.layers.batch_norm, 
+        activation_fn=prelu, normalizer_fn=tf.contrib.layers.batch_norm,  
         normalizer_params={'scale': True})
     print(output.get_shape())
     output = conv_cond_concat(output, cond)
@@ -109,7 +109,7 @@ def discriminator(input_X, z_r, y, batch_size, gan_noise=0.01):
     print(output.get_shape())
     output = tf.contrib.layers.fully_connected(output, 256, scope='full1',
         activation_fn=tf.nn.sigmoid, normalizer_fn=tf.contrib.layers.batch_norm,
-        normalizer_params={'scale': True})    
+        normalizer_params={'scale': True})     # or use lrelu??
     output = tf.concat([output, cond], 1)
     print(output.get_shape())
     output = tf.contrib.layers.fully_connected(output, 1, scope='full2',
