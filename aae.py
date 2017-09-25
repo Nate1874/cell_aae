@@ -164,6 +164,7 @@ class GAN(object):
                 if iterations %self.conf.save_step == 0:
                     self.save(iterations+self.conf.checkpoint)
                 iterations = iterations +1
+           #     self.save_image(test_out, test_x, epoch)
             print("g_loss is ===================", g_loss, "d_loss is =================", d_loss)
             test_x, test_y, test_r = data.next_test_batch(self.conf.batch_size)
             test_out = self.sess.run([self.test_out], feed_dict= {self.test_r: test_r,  self.test_y: test_y})
@@ -176,14 +177,16 @@ class GAN(object):
         imgs_test_folder = os.path.join(self.conf.working_directory, 'imgs_GAN')
         if not os.path.exists(imgs_test_folder):
             os.makedirs(imgs_test_folder)
-        for k in range(imgs.shape[0]):
+        for k in range(self.conf.batch_size):
             temp_test_dir= os.path.join(imgs_test_folder, 'epoch_%d_#img_%d.png'%(epoch,k))
             res = np.zeros((self.conf.height, self.conf.height*5+8, 3))
             res[:,0:self.conf.height,:]= inputs[k,:,:,:]
-            res[:,self.conf.height+2:self.conf.height*2+2,(0,2)]=inputs[k,:,:,(0,2)]
+            res[:,self.conf.height+2:self.conf.height*2+2,0]=inputs[k,:,:,0]
+            res[:,self.conf.height+2:self.conf.height*2+2,2]=inputs[k,:,:,2]
             res[:,self.conf.height*2+4:self.conf.height*3+4, 1]= inputs[k,:,:,1]
             res[:,self.conf.height*3+6:self.conf.height*4+6, 1]= imgs[k,:,:,1]
-            res[:,self.conf.height*4+8:self.conf.height*5+8, (0,2)]= inputs[k,:,:,(0,2)]
+            res[:,self.conf.height*4+8:self.conf.height*5+8, 0]= inputs[k,:,:,2]
+            res[:,self.conf.height*4+8:self.conf.height*5+8, 2]= inputs[k,:,:,2]
             res[:,self.conf.height*4+8:self.conf.height*5+8, 1]= imgs[k,:,:,1]
             imsave(temp_test_dir, res)
         print("Evaluation images generated！==============================") 

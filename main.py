@@ -14,7 +14,7 @@ def configure():
  #   flags.DEFINE_integer("max_con_epoch", 300, "max epoch for conditional part training")
     flags.DEFINE_integer("max_generated_imgs", 200, "max generated imgs for each input")
     flags.DEFINE_integer("max_test_epoch", 107, "max  test epoch")
-    flags.DEFINE_integer("summary_step", 10, "save summary per #summary_step iters")
+    flags.DEFINE_integer("summary_step", 100, "save summary per #summary_step iters")
     flags.DEFINE_integer("save_step", 1000, "save model per #save_step iters")
     flags.DEFINE_integer("n_class", 10, "number of classes")
     flags.DEFINE_float("learning_rate", 2e-4, "learning rate")
