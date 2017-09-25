@@ -72,14 +72,16 @@ def generator(z_s, z_r, y, batch_size):
         normalizer_params={'scale': True})
     print(output.get_shape())
     output = tf.contrib.layers.conv2d_transpose(
-        output, 3, deconv_size, scope='deconv6', stride=2, padding='SAME',
+        output, 1, deconv_size, scope='deconv6', stride=2, padding='SAME',
         activation_fn=tf.nn.sigmoid, normalizer_fn=None)
     print(output.get_shape())  # use sigmoid?
     return output
 
-def discriminator(input_X, z_r, y, batch_size, gan_noise=0.01):
-    cond = tf.concat([z_r, y], 1)
-    cond_b = tf.reshape(cond,[batch_size, 1, 1, 26])
+def discriminator(input_X, y, batch_size, gan_noise=0.01):
+    cond = y
+    print("=========================")
+    print(input_X.get_shape())
+    cond_b = tf.reshape(cond,[batch_size, 1, 1, 10])
     output = conv_cond_concat(input_X, cond_b)
     if gan_noise > 0:
         output = add_white_noise(output)

@@ -59,12 +59,18 @@ class GAN(object):
         print("Start building the generator of the ConGAN========================")
         #build the conditional auto encoder
         with tf.variable_scope('Generator') as scope:
-            self.X_rec = generator(self.sampled_z_s, self.input_latent_r, self.input_y, self.conf.batch_size)
+            self.X_rec = generator(self.sampled_z_s, self.input_latent_r, self.input_y, self.conf.batch_size) # only s channel
+        print("=========================Now split and insert")
+        self.ch1, self.ch2_, self.ch3 = tf.split(self.input_x, num_or_size_splits=3, axis= 3)
+        print(self.X_rec.get_shape())
+        print(self.ch1.get_shape())
+        self.X_rec = tf.concat([self.ch1, self.X_rec, self.ch3], axis= 3) 
+        print(self.X_rec.get_shape())
 
         with tf.variable_scope('Discriminator') as scope:
-            self.out_real = discriminator(self.input_x, self.input_latent_r, self.input_y, self.conf.batch_size)
+            self.out_real = discriminator(self.input_x, self.input_y, self.conf.batch_size)
             scope.reuse_variables()
-            self.out_fake = discriminator(self.X_rec, self.input_latent_r, self.input_y, self.conf.batch_size)
+            self.out_fake = discriminator(self.X_rec,  self.input_y, self.conf.batch_size)
         
 
         # the loss for the conditional auto encoder
@@ -78,6 +84,14 @@ class GAN(object):
         
         self.dis_loss= self.d_loss_fake+self.d_loss_real
         self.gen_loss= self.rec_loss + self.g_loss*self.conf.gamma_gen
+
+        self.test_r = tf.placeholder(tf.float32,[None, self.conf.hidden_size])
+        self.test_y = tf.placeholder(tf.int32,[None,self.conf.n_class])
+   #     self.test_label = tf.placeholder(tf.float32,[None, self.conf.height, self.conf.width, 3])
+        random_s_test= tf.random_normal([self.conf.batch_size,self.conf.hidden_size])
+        self.test_y = tf.cast(self.test_y, tf.float32)
+        with tf.variable_scope('Generator', reuse= True) as scope:
+            self.test_out = generator(random_s_test, self.test_y, self.test_r, self.conf.batch_size)
 
         
        
@@ -150,9 +164,29 @@ class GAN(object):
                 if iterations %self.conf.save_step == 0:
                     self.save(iterations+self.conf.checkpoint)
                 iterations = iterations +1
+            print("g_loss is ===================", g_loss, "d_loss is =================", d_loss)
+            test_x, test_y, test_r = data.next_test_batch(self.conf.batch_size)
+            test_out = self.sess.run([self.test_out], feed_dict= {self.test_r: test_r,  self.test_y: test_y})
+            self.save_image(test_out, test_x, epoch)
     #           print("encd_s_loss is  ================", encd_s_loss, "decd_s_loss is =============", decd_s_loss)
      #       self.generate_con_image()
      #   self.evaluate(data)
+
+    def save_image(self, imgs, inputs, epoch):
+        imgs_test_folder = os.path.join(self.conf.working_directory, 'imgs_GAN')
+        if not os.path.exists(imgs_test_folder):
+            os.makedirs(imgs_test_folder)
+        for k in range(imgs.shape[0]):
+            temp_test_dir= os.path.join(imgs_test_folder, 'epoch_%d_#img_%d.png'%(epoch,k))
+            res = np.zeros((self.conf.height, self.conf.height*5+8, 3))
+            res[:,0:self.conf.height,:]= inputs[k,:,:,:]
+            res[:,self.conf.height+2:self.conf.height*2+2,(0,2)]=inputs[k,:,:,(0,2)]
+            res[:,self.conf.height*2+4:self.conf.height*3+4, 1]= inputs[k,:,:,1]
+            res[:,self.conf.height*3+6:self.conf.height*4+6, 1]= imgs[k,:,:,1]
+            res[:,self.conf.height*4+8:self.conf.height*5+8, (0,2)]= inputs[k,:,:,(0,2)]
+            res[:,self.conf.height*4+8:self.conf.height*5+8, 1]= imgs[k,:,:,1]
+            imsave(temp_test_dir, res)
+        print("Evaluation images generated！==============================") 
 
 
     

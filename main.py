@@ -10,7 +10,7 @@ def configure():
     flags = tf.app.flags
     flags.DEFINE_integer("batch_size", 10, "batch size")
     flags.DEFINE_integer("updates_per_epoch", 500, "number of updates per epoch")
-    flags.DEFINE_integer("max_epoch", 1000, "max epoch for total training")
+    flags.DEFINE_integer("max_epoch", 500, "max epoch for total training")
  #   flags.DEFINE_integer("max_con_epoch", 300, "max epoch for conditional part training")
     flags.DEFINE_integer("max_generated_imgs", 200, "max generated imgs for each input")
     flags.DEFINE_integer("max_test_epoch", 107, "max  test epoch")
@@ -18,7 +18,7 @@ def configure():
     flags.DEFINE_integer("save_step", 1000, "save model per #save_step iters")
     flags.DEFINE_integer("n_class", 10, "number of classes")
     flags.DEFINE_float("learning_rate", 2e-4, "learning rate")
-    flags.DEFINE_float("gamma_gen", 1e-3, "gamma ratio for generator loss")
+    flags.DEFINE_float("gamma_gen", 1e-4, "gamma ratio for generator loss")
 #   flags.DEFINE_float("gamma_dec", 1e-4, "gamma ratio for decoder")
     flags.DEFINE_float("gan_noise", 0.01, "injection noise for the GAN")
     flags.DEFINE_bool("noise_bool", False, "add noise on all GAN layers")
@@ -30,9 +30,9 @@ def configure():
  #   flags.DEFINE_string("model_name", 'low_rank', "vanilla or low_rank")
     flags.DEFINE_integer("height", 256, "height of image")
     flags.DEFINE_integer("width", 256, "width of image")
-    flags.DEFINE_string("modeldir", './modeldir_cgan', "the model directory")
-    flags.DEFINE_string("logdir", './logdir_cgan', "the log directory")
-    flags.DEFINE_string("sampledir", './sampledir_cgan', "the sample directory")
+    flags.DEFINE_string("modeldir", './modeldir_cgan_s', "the model directory")
+    flags.DEFINE_string("logdir", './logdir_cgan_s', "the log directory")
+    flags.DEFINE_string("sampledir", './sampledir_cgan_s', "the sample directory")
     flags.FLAGS.__dict__['__parsed'] = False
     return flags.FLAGS
 
@@ -53,7 +53,7 @@ def main(_):
         getattr(model,args.action)()
 
 if __name__ == "__main__":
-    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+    os.environ['CUDA_VISIBLE_DEVICES'] = '4'
     tf.app.run()
 
 

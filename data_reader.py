@@ -5,7 +5,7 @@ import os
 
 class data_reader:
     def __init__(self):
-        file_name = '/tempspace/hyuan/allen_data/training_with_r.h5'
+        file_name = '/tempspace/hyuan/allen_data_h5/training_with_r.h5'
         self.data = h5py.File(file_name, 'r')
         self.images = self.data['X']
         self.label = self.data['Y']
