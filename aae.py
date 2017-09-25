@@ -92,6 +92,8 @@ class GAN(object):
         self.test_y = tf.cast(self.test_y, tf.float32)
         with tf.variable_scope('Generator', reuse= True) as scope:
             self.test_out = generator(random_s_test, self.test_y, self.test_r, self.conf.batch_size)
+        print("==================FINAL shape is ")
+        print(self.test_out.get_shape())
 
         
        
@@ -167,7 +169,8 @@ class GAN(object):
            #     self.save_image(test_out, test_x, epoch)
             print("g_loss is ===================", g_loss, "d_loss is =================", d_loss)
             test_x, test_y, test_r = data.next_test_batch(self.conf.batch_size)
-            test_out = self.sess.run([self.test_out], feed_dict= {self.test_r: test_r,  self.test_y: test_y})
+            test_out = self.sess.run(self.test_out, feed_dict= {self.test_r: test_r,  self.test_y: test_y})
+      #      print(test_out.shape)
             self.save_image(test_out, test_x, epoch)
     #           print("encd_s_loss is  ================", encd_s_loss, "decd_s_loss is =============", decd_s_loss)
      #       self.generate_con_image()
