@@ -187,10 +187,10 @@ class GAN(object):
             res[:,self.conf.height+2:self.conf.height*2+2,0]=inputs[k,:,:,0]
             res[:,self.conf.height+2:self.conf.height*2+2,2]=inputs[k,:,:,2]
             res[:,self.conf.height*2+4:self.conf.height*3+4, 1]= inputs[k,:,:,1]
-            res[:,self.conf.height*3+6:self.conf.height*4+6, 1]= imgs[k,:,:,1]
+            res[:,self.conf.height*3+6:self.conf.height*4+6, 1]= imgs[k,:,:,0]
             res[:,self.conf.height*4+8:self.conf.height*5+8, 0]= inputs[k,:,:,2]
             res[:,self.conf.height*4+8:self.conf.height*5+8, 2]= inputs[k,:,:,2]
-            res[:,self.conf.height*4+8:self.conf.height*5+8, 1]= imgs[k,:,:,1]
+            res[:,self.conf.height*4+8:self.conf.height*5+8, 1]= imgs[k,:,:,0]
             imsave(temp_test_dir, res)
         print("Evaluation images generated！==============================") 
 
