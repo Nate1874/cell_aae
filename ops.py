@@ -30,6 +30,40 @@ def conv_cond_concat(x, y):
      return tf.concat([
         x, y*tf.ones([y_shapes[0], x_shapes[1], x_shapes[2], y_shapes[3]])], 3)
 
+def encode_img(input_tensor,output_size):
+    output = tf.contrib.layers.conv2d(
+        input_tensor, 64, conv_size, scope='convlayer1', stride =2, padding='SAME',
+        activation_fn=prelu, normalizer_fn=tf.contrib.layers.batch_norm,
+        normalizer_params={'scale': True})
+    output = tf.contrib.layers.conv2d(
+        output, 128, conv_size, scope='convlayer2', stride =2, padding='SAME',
+        activation_fn=prelu, normalizer_fn=tf.contrib.layers.batch_norm,
+        normalizer_params={'scale': True})
+    output = tf.contrib.layers.conv2d(
+        output, 256, conv_size, scope='convlayer3', stride =2, padding='SAME',
+        activation_fn=prelu, normalizer_fn=tf.contrib.layers.batch_norm,
+        normalizer_params={'scale': True})
+    output = tf.contrib.layers.conv2d(
+        output, 512, conv_size, scope='convlayer4', stride =2, padding='SAME',
+        activation_fn=prelu, normalizer_fn=tf.contrib.layers.batch_norm,
+        normalizer_params={'scale': True})
+    output = tf.contrib.layers.conv2d(
+        output, 1024, conv_size, scope='convlayer5', stride =2, padding='SAME',
+        activation_fn=prelu, normalizer_fn=tf.contrib.layers.batch_norm,
+        normalizer_params={'scale': True})
+    output = tf.contrib.layers.conv2d(
+        output, 1024, conv_size, scope='convlayer6', stride =2, padding='SAME',
+        activation_fn=None, normalizer_fn=tf.contrib.layers.batch_norm,
+        normalizer_params={'scale': True}) 
+    output = tf.contrib.layers.flatten(output)
+#    print(output.get_shape())
+    output = prelu(output, scope='prelu_first/')    
+    output = tf.contrib.layers.fully_connected(output, output_size, activation_fn=None,
+        normalizer_fn=tf.contrib.layers.batch_norm, normalizer_params={'scale': True})
+    print(output.get_shape())
+ #   output = tf.contrib.layers.dropout(output, 0.9, scope='dropout1')
+    return output
+
 def generator(z_s, z_r, y, batch_size):
     cond = tf.concat([z_r, y], 1)
     z = tf.concat([cond, z_s], 1)

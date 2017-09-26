@@ -26,13 +26,13 @@ def configure():
                         "the file directory")
     flags.DEFINE_integer("hidden_size", 16, "size of the hidden VAE unit")
  #   flags.DEFINE_integer("channel", 64, "size of initial channel in decoder")
-    flags.DEFINE_integer("checkpoint", 79000, "number of epochs to be reloaded")
+    flags.DEFINE_integer("checkpoint", 0, "number of epochs to be reloaded")
  #   flags.DEFINE_string("model_name", 'low_rank', "vanilla or low_rank")
     flags.DEFINE_integer("height", 256, "height of image")
     flags.DEFINE_integer("width", 256, "width of image")
-    flags.DEFINE_string("modeldir", './modeldir_cgan_s', "the model directory")
-    flags.DEFINE_string("logdir", './logdir_cgan_s', "the log directory")
-    flags.DEFINE_string("sampledir", './sampledir_cgan_s', "the sample directory")
+    flags.DEFINE_string("modeldir", './modeldir_cgan_img', "the model directory")
+    flags.DEFINE_string("logdir", './logdir_cgan_img', "the log directory")
+    flags.DEFINE_string("sampledir", './sampledir_cgan_img', "the sample directory")
     flags.FLAGS.__dict__['__parsed'] = False
     return flags.FLAGS
 
@@ -53,7 +53,7 @@ def main(_):
         getattr(model,args.action)()
 
 if __name__ == "__main__":
-    os.environ['CUDA_VISIBLE_DEVICES'] = '4'
+    os.environ['CUDA_VISIBLE_DEVICES'] = '6'
     tf.app.run()
 
 

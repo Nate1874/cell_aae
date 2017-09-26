@@ -51,15 +51,17 @@ class GAN(object):
 
         self.sampled_z_s = tf.placeholder(tf.float32,[None, self.conf.hidden_size])
         self.input_y = tf.placeholder(tf.int32,[None,self.conf.n_class])    
-        self.input_latent_r = tf.placeholder(tf.float32,[None, self.conf.hidden_size])
+  #      self.input_latent_r = tf.placeholder(tf.float32,[None, self.conf.hidden_size])
         self.input_x = tf.placeholder(tf.float32,[None, self.conf.height, self.conf.width, 3])
-
+        self.input_x_r = tf.placeholder(tf.float32,[None, self.conf.height, self.conf.width, 2])
         self.input_y= tf.cast(self.input_y, tf.float32)
 
         print("Start building the generator of the ConGAN========================")
         #build the conditional auto encoder
         with tf.variable_scope('Generator') as scope:
-            self.X_rec_s = generator(self.sampled_z_s, self.input_latent_r, self.input_y, self.conf.batch_size) # only s channel
+            self.output_r = encode_img(self.input_x_r, self.conf.hidden_size)
+            print(self.output_r.get_shape())
+            self.X_rec_s = generator(self.sampled_z_s, self.output_r, self.input_y, self.conf.batch_size) # only s channel
         print("=========================Now split and insert")
         self.ch1, self.ch2_, self.ch3 = tf.split(self.input_x, num_or_size_splits=3, axis= 3)
     #    print(self.X_rec.get_shape())
@@ -85,13 +87,18 @@ class GAN(object):
         self.dis_loss= self.d_loss_fake+self.d_loss_real
         self.gen_loss= self.rec_loss + self.g_loss*self.conf.gamma_gen
 
-        self.test_r = tf.placeholder(tf.float32,[None, self.conf.hidden_size])
+        self.test_x_r = tf.placeholder(tf.float32,[None, self.conf.height, self.conf.width, 2])
         self.test_y = tf.placeholder(tf.int32,[None,self.conf.n_class])
    #     self.test_label = tf.placeholder(tf.float32,[None, self.conf.height, self.conf.width, 3])
         random_s_test= tf.random_normal([self.conf.batch_size,self.conf.hidden_size])
+        fix_s_test = tf.zeros_like(random_s_test)
         self.test_y = tf.cast(self.test_y, tf.float32)
         with tf.variable_scope('Generator', reuse= True) as scope:
-            self.test_out = generator(random_s_test, self.test_r, self.test_y, self.conf.batch_size)
+            inter_r = encode_img(self.test_x_r, self.conf.hidden_size)
+            self.test_out = generator(random_s_test, inter_r, self.test_y, self.conf.batch_size)
+        with tf.variable_scope('Generator', reuse= True) as scope:
+            self.test_out2 = generator(fix_s_test, inter_r, self.test_y, self.conf.batch_size)
+        
         print("==================FINAL shape is ")
         print(self.test_out.get_shape())
 
@@ -158,10 +165,10 @@ class GAN(object):
         for epoch in range(max_epoch):
             pbar = ProgressBar()
             for i in pbar(range(self.conf.updates_per_epoch)):
-                inputs, labels, latent_r = data.next_batch(self.conf.batch_size)
-             #   inputs_only_r = data.extract(inputs)
+                inputs, labels, _ = data.next_batch(self.conf.batch_size)
+                inputs_r = data.extract(inputs)
                 sampled_zs = np.random.normal(size= (self.conf.batch_size,self.conf.hidden_size))
-                feed_dict = {self.sampled_z_s: sampled_zs, self.input_y: labels, self.input_latent_r:latent_r, self.input_x: inputs}
+                feed_dict = {self.sampled_z_s: sampled_zs, self.input_y: labels, self.input_x_r:inputs_r, self.input_x: inputs}
                 _ , d_loss = self.sess.run([self.train_disc,self.dis_loss], feed_dict= feed_dict)
                 _ , g_loss, summary = self.sess.run([self.train_gen, self.gen_loss, self.train_summary], feed_dict = feed_dict)
                 if iterations %self.conf.summary_step == 1:
@@ -171,21 +178,22 @@ class GAN(object):
                 iterations = iterations +1
            #     self.save_image(test_out, test_x, epoch)
             print("g_loss is ===================", g_loss, "d_loss is =================", d_loss)
-            test_x, test_y, test_r = data.next_test_batch(self.conf.batch_size)
-            test_out = self.sess.run(self.test_out, feed_dict= {self.test_r: test_r,  self.test_y: test_y})
+            test_x, test_y, _ = data.next_test_batch(self.conf.batch_size)
+            test_x_r = data.extract(test_x)
+            test_out, test_out_2 = self.sess.run([self.test_out, self.test_out2], feed_dict= {self.test_x_r: test_x_r,  self.test_y: test_y})
       #      print(test_out.shape)
-            self.save_image(test_out, test_x, epoch+int  (self.conf.checkpoint)/ 500)
+            self.save_image(test_out, test_out_2, test_x, epoch+int  (self.conf.checkpoint)/ 500)
     #           print("encd_s_loss is  ================", encd_s_loss, "decd_s_loss is =============", decd_s_loss)
      #       self.generate_con_image()
      #   self.evaluate(data)
 
-    def save_image(self, imgs, inputs, epoch):
-        imgs_test_folder = os.path.join(self.conf.working_directory, 'imgs_GAN')
+    def save_image(self, imgs, imgs2, inputs, epoch):
+        imgs_test_folder = os.path.join(self.conf.working_directory, 'imgs_GAN_X')
         if not os.path.exists(imgs_test_folder):
             os.makedirs(imgs_test_folder)
         for k in range(self.conf.batch_size):
             temp_test_dir= os.path.join(imgs_test_folder, 'epoch_%d_#img_%d.png'%(epoch,k))
-            res = np.zeros((self.conf.height, self.conf.height*5+8, 3))
+            res = np.ones((self.conf.height, self.conf.height*6+10, 3))*255
             res[:,0:self.conf.height,:]= inputs[k,:,:,:]
             res[:,self.conf.height+2:self.conf.height*2+2,0]=inputs[k,:,:,0]
             res[:,self.conf.height+2:self.conf.height*2+2,2]=inputs[k,:,:,2]
@@ -194,6 +202,7 @@ class GAN(object):
             res[:,self.conf.height*4+8:self.conf.height*5+8, 0]= inputs[k,:,:,0]
             res[:,self.conf.height*4+8:self.conf.height*5+8, 2]= inputs[k,:,:,2]
             res[:,self.conf.height*4+8:self.conf.height*5+8, 1]= imgs[k,:,:,0]
+            res[:,self.conf.height*5+10:self.conf.height*6+10, 1]= imgs2[k,:,:,0]
             imsave(temp_test_dir, res)
         print("Evaluation images generated！==============================") 
 
