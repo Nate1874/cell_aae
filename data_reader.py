@@ -34,6 +34,8 @@ class data_reader:
     #    return self.images[cur_indexes], self.label[cur_indexes]
 
     def next_test_batch(self, batch_size):
+        if self.test_idx>=6070:
+            self.test_idx=5000
         prev_idx = self.test_idx
         self.test_idx += batch_size
         return self.images[prev_idx:self.test_idx], self.label[prev_idx: self.test_idx], self.z_r[prev_idx: self.test_idx]

@@ -59,12 +59,12 @@ class GAN(object):
         print("Start building the generator of the ConGAN========================")
         #build the conditional auto encoder
         with tf.variable_scope('Generator') as scope:
-            self.X_rec = generator(self.sampled_z_s, self.input_latent_r, self.input_y, self.conf.batch_size) # only s channel
+            self.X_rec_s = generator(self.sampled_z_s, self.input_latent_r, self.input_y, self.conf.batch_size) # only s channel
         print("=========================Now split and insert")
         self.ch1, self.ch2_, self.ch3 = tf.split(self.input_x, num_or_size_splits=3, axis= 3)
-        print(self.X_rec.get_shape())
+    #    print(self.X_rec.get_shape())
         print(self.ch1.get_shape())
-        self.X_rec = tf.concat([self.ch1, self.X_rec, self.ch3], axis= 3) 
+        self.X_rec = tf.concat([self.ch1, self.X_rec_s, self.ch3], axis= 3) 
         print(self.X_rec.get_shape())
 
         with tf.variable_scope('Discriminator') as scope:
@@ -78,7 +78,7 @@ class GAN(object):
         self.d_loss_fake = self.get_bce_loss(self.out_fake, tf.zeros_like(self.out_fake))
         # Do we need to add the classification loss??????????????????????????
         self.g_loss = self.get_bce_loss(self.out_fake, tf.ones_like(self.out_fake))
-        self.rec_loss = self.get_mse_loss(self.X_rec, self.input_x)
+        self.rec_loss = self.get_mse_loss(self.X_rec_s, self.ch2_)
 
         # build the model for the final conditional generation
         
@@ -91,7 +91,7 @@ class GAN(object):
         random_s_test= tf.random_normal([self.conf.batch_size,self.conf.hidden_size])
         self.test_y = tf.cast(self.test_y, tf.float32)
         with tf.variable_scope('Generator', reuse= True) as scope:
-            self.test_out = generator(random_s_test, self.test_y, self.test_r, self.conf.batch_size)
+            self.test_out = generator(random_s_test, self.test_r, self.test_y, self.conf.batch_size)
         print("==================FINAL shape is ")
         print(self.test_out.get_shape())
 
@@ -107,6 +107,9 @@ class GAN(object):
         summarys.append(tf.summary.scalar('/g_loss', self.g_loss)) 
         summarys.append(tf.summary.scalar('/generator_loss', self.gen_loss))
         summarys.append(tf.summary.image('input_X', self.input_x, max_outputs = 10))
+        summarys.append(tf.summary.image('input_s', self.ch2_, max_outputs = 10))
+    #    summarys.append(tf.summary.image('input_r', self.input_x, max_outputs = 10))
+        summarys.append(tf.summary.image('rec_r', self.X_rec_s, max_outputs = 10))
         summarys.append(tf.summary.image('recon_X', self.X_rec, max_outputs = 10))        
         summary = tf.summary.merge(summarys)
         return summary
@@ -171,7 +174,7 @@ class GAN(object):
             test_x, test_y, test_r = data.next_test_batch(self.conf.batch_size)
             test_out = self.sess.run(self.test_out, feed_dict= {self.test_r: test_r,  self.test_y: test_y})
       #      print(test_out.shape)
-            self.save_image(test_out, test_x, epoch)
+            self.save_image(test_out, test_x, epoch+int  (self.conf.checkpoint)/ 500)
     #           print("encd_s_loss is  ================", encd_s_loss, "decd_s_loss is =============", decd_s_loss)
      #       self.generate_con_image()
      #   self.evaluate(data)
@@ -188,7 +191,7 @@ class GAN(object):
             res[:,self.conf.height+2:self.conf.height*2+2,2]=inputs[k,:,:,2]
             res[:,self.conf.height*2+4:self.conf.height*3+4, 1]= inputs[k,:,:,1]
             res[:,self.conf.height*3+6:self.conf.height*4+6, 1]= imgs[k,:,:,0]
-            res[:,self.conf.height*4+8:self.conf.height*5+8, 0]= inputs[k,:,:,2]
+            res[:,self.conf.height*4+8:self.conf.height*5+8, 0]= inputs[k,:,:,0]
             res[:,self.conf.height*4+8:self.conf.height*5+8, 2]= inputs[k,:,:,2]
             res[:,self.conf.height*4+8:self.conf.height*5+8, 1]= imgs[k,:,:,0]
             imsave(temp_test_dir, res)
