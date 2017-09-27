@@ -157,6 +157,7 @@ class GAN(object):
 
     def train(self):
         if self.conf.checkpoint >0:
+            print('=======Now load the model===============')
             self.reload(self.conf.checkpoint)
         data = data_reader()
         iterations = 1
@@ -193,7 +194,7 @@ class GAN(object):
             os.makedirs(imgs_test_folder)
         for k in range(self.conf.batch_size):
             temp_test_dir= os.path.join(imgs_test_folder, 'epoch_%d_#img_%d.png'%(epoch,k))
-            res = np.ones((self.conf.height, self.conf.height*6+10, 3))*255
+            res = np.zeros((self.conf.height, self.conf.height*6+10, 3))
             res[:,0:self.conf.height,:]= inputs[k,:,:,:]
             res[:,self.conf.height+2:self.conf.height*2+2,0]=inputs[k,:,:,0]
             res[:,self.conf.height+2:self.conf.height*2+2,2]=inputs[k,:,:,2]
