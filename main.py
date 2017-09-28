@@ -10,7 +10,7 @@ def configure():
     flags = tf.app.flags
     flags.DEFINE_integer("batch_size", 10, "batch size")
     flags.DEFINE_integer("updates_per_epoch", 500, "number of updates per epoch")
-    flags.DEFINE_integer("max_epoch", 500, "max epoch for total training")
+    flags.DEFINE_integer("max_epoch", 1000, "max epoch for total training")
  #   flags.DEFINE_integer("max_con_epoch", 300, "max epoch for conditional part training")
     flags.DEFINE_integer("max_generated_imgs", 200, "max generated imgs for each input")
     flags.DEFINE_integer("max_test_epoch", 107, "max  test epoch")
