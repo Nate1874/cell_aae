@@ -26,7 +26,7 @@ def configure():
                         "the file directory")
     flags.DEFINE_integer("hidden_size", 16, "size of the hidden VAE unit")
  #   flags.DEFINE_integer("channel", 64, "size of initial channel in decoder")
-    flags.DEFINE_integer("checkpoint", 97000, "number of epochs to be reloaded")
+    flags.DEFINE_integer("checkpoint", 250000, "number of epochs to be reloaded")
  #   flags.DEFINE_string("model_name", 'low_rank', "vanilla or low_rank")
     flags.DEFINE_integer("height", 256, "height of image")
     flags.DEFINE_integer("width", 256, "width of image")
@@ -53,7 +53,7 @@ def main(_):
         getattr(model,args.action)()
 
 if __name__ == "__main__":
-    os.environ['CUDA_VISIBLE_DEVICES'] = '6'
+    os.environ['CUDA_VISIBLE_DEVICES'] = '4'
     tf.app.run()
 
 
