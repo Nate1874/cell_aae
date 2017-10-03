@@ -30,9 +30,9 @@ def configure():
  #   flags.DEFINE_string("model_name", 'low_rank', "vanilla or low_rank")
     flags.DEFINE_integer("height", 256, "height of image")
     flags.DEFINE_integer("width", 256, "width of image")
-    flags.DEFINE_string("modeldir", './modeldir_cgan_img', "the model directory")
-    flags.DEFINE_string("logdir", './logdir_cgan_img', "the log directory")
-    flags.DEFINE_string("sampledir", './sampledir_cgan_img', "the sample directory")
+    flags.DEFINE_string("modeldir", './modeldir_unet', "the model directory")
+    flags.DEFINE_string("logdir", './logdir_unet', "the log directory")
+    flags.DEFINE_string("sampledir", './sampledir_unet', "the sample directory")
     flags.FLAGS.__dict__['__parsed'] = False
     return flags.FLAGS
 

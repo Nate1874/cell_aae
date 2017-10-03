@@ -30,31 +30,38 @@ def conv_cond_concat(x, y):
      return tf.concat([
         x, y*tf.ones([y_shapes[0], x_shapes[1], x_shapes[2], y_shapes[3]])], 3)
 
-def encode_img(input_tensor,output_size):
+def encode_img(input_tensor, output_size):
+    down_outputs = []
     output = tf.contrib.layers.conv2d(
         input_tensor, 64, conv_size, scope='convlayer1', stride =2, padding='SAME',
         activation_fn=prelu, normalizer_fn=tf.contrib.layers.batch_norm,
         normalizer_params={'scale': True})
+    down_outputs.append(output) # input for the first gated connection
     output = tf.contrib.layers.conv2d(
         output, 128, conv_size, scope='convlayer2', stride =2, padding='SAME',
         activation_fn=prelu, normalizer_fn=tf.contrib.layers.batch_norm,
         normalizer_params={'scale': True})
+    down_outputs.append(output) # second
     output = tf.contrib.layers.conv2d(
         output, 256, conv_size, scope='convlayer3', stride =2, padding='SAME',
         activation_fn=prelu, normalizer_fn=tf.contrib.layers.batch_norm,
         normalizer_params={'scale': True})
+    down_outputs.append(output) #third
     output = tf.contrib.layers.conv2d(
         output, 512, conv_size, scope='convlayer4', stride =2, padding='SAME',
         activation_fn=prelu, normalizer_fn=tf.contrib.layers.batch_norm,
         normalizer_params={'scale': True})
+    down_outputs.append(output) #4th
     output = tf.contrib.layers.conv2d(
         output, 1024, conv_size, scope='convlayer5', stride =2, padding='SAME',
         activation_fn=prelu, normalizer_fn=tf.contrib.layers.batch_norm,
         normalizer_params={'scale': True})
-    output = tf.contrib.layers.conv2d(
+    down_outputs.append(output) #5th
+    output = tf.contrib.layers.conv2d( 
         output, 1024, conv_size, scope='convlayer6', stride =2, padding='SAME',
         activation_fn=None, normalizer_fn=tf.contrib.layers.batch_norm,
         normalizer_params={'scale': True}) 
+    down_outputs.append(output) #6th
     output = tf.contrib.layers.flatten(output)
 #    print(output.get_shape())
     output = prelu(output, scope='prelu_first/')    
@@ -62,12 +69,25 @@ def encode_img(input_tensor,output_size):
         normalizer_fn=tf.contrib.layers.batch_norm, normalizer_params={'scale': True})
     print(output.get_shape())
  #   output = tf.contrib.layers.dropout(output, 0.9, scope='dropout1')
+    return output, down_outputs
+
+def gated_deconv(inputs, skip_input, out_ch, scope='gated_deconv/'):
+    skip_out = tf.contrib.layers.conv2d(
+        skip_input, 1, conv_size, scope='conv1', padding='SAME',
+        activation_fn=tf.nn.sigmoid, normalizer_fn=None)
+    skip_out = tf.multiply(skip_input, skip_out)
+    output = tf.concat([inputs, skip_out], 3) # use concat or add??
+    output = tf.contrib.layers.conv2d_transpose(    
+        output, out_ch, deconv_size, scope='deconv1', stride = 2, padding='SAME',
+        activation_fn=prelu, normalizer_fn=tf.contrib.layers.batch_norm, 
+        normalizer_params={'scale': True})
     return output
 
-def generator(z_s, z_r, y, batch_size):
+
+def generator(down_outputs, z_s, z_r, y, batch_size):
     cond = tf.concat([z_r, y], 1)
     z = tf.concat([cond, z_s], 1)
-    output = tf.contrib.layers.fully_connected(z ,1024*4*4,scope='fully1',
+    output = tf.contrib.layers.fully_connected(z, 1024*4*4, scope='fully1',
         activation_fn=None, normalizer_fn=tf.contrib.layers.batch_norm,
         normalizer_params={'scale': True})
     print(output.get_shape())
@@ -75,7 +95,10 @@ def generator(z_s, z_r, y, batch_size):
     output = tf.transpose(output, perm=[0, 2, 3 ,1])
     print(output.get_shape())
     output = prelu(output)
-    cond = tf.reshape(cond,[batch_size, 1, 1, 26])
+    output = gated_deconv(output, down_outputs[0], 1024, scope='gated_deconv1/')
+    print("========After the first gated layer==============",output.get_shape())
+    
+
     output = tf.contrib.layers.conv2d_transpose(    
         output, 1024, deconv_size, scope='deconv1', stride = 2, padding='SAME',
         activation_fn=prelu, normalizer_fn=tf.contrib.layers.batch_norm, 
@@ -86,7 +109,7 @@ def generator(z_s, z_r, y, batch_size):
         activation_fn=prelu, normalizer_fn=tf.contrib.layers.batch_norm,  
         normalizer_params={'scale': True})
     print(output.get_shape())
-    output = conv_cond_concat(output, cond)
+ 
     print(output.get_shape())
     output = tf.contrib.layers.conv2d_transpose(
         output, 256, deconv_size, scope='deconv3', stride = 2, padding='SAME',
@@ -98,7 +121,7 @@ def generator(z_s, z_r, y, batch_size):
         activation_fn=prelu, normalizer_fn=tf.contrib.layers.batch_norm, 
         normalizer_params={'scale': True})
     print(output.get_shape())
-    output = conv_cond_concat(output, cond)
+
     print(output.get_shape())
     output = tf.contrib.layers.conv2d_transpose(
         output, 64, deconv_size, scope='deconv5', stride=2, padding='SAME',
