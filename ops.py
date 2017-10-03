@@ -73,12 +73,12 @@ def encode_img(input_tensor, output_size):
 
 def gated_deconv(inputs, skip_input, out_ch, scope='gated_deconv/'):
     skip_out = tf.contrib.layers.conv2d(
-        skip_input, 1, conv_size, scope='conv1', padding='SAME',
+        skip_input, 1, conv_size, scope = scope+'conv1', padding='SAME',
         activation_fn=tf.nn.sigmoid, normalizer_fn=None)
     skip_out = tf.multiply(skip_input, skip_out)
     output = tf.concat([inputs, skip_out], 3) # use concat or add??
     output = tf.contrib.layers.conv2d_transpose(    
-        output, out_ch, deconv_size, scope='deconv1', stride = 2, padding='SAME',
+        output, out_ch, deconv_size, scope= scope+'deconv1', stride = 2, padding='SAME',
         activation_fn=prelu, normalizer_fn=tf.contrib.layers.batch_norm, 
         normalizer_params={'scale': True})
     return output
@@ -95,39 +95,21 @@ def generator(down_outputs, z_s, z_r, y, batch_size):
     output = tf.transpose(output, perm=[0, 2, 3 ,1])
     print(output.get_shape())
     output = prelu(output)
-    output = gated_deconv(output, down_outputs[0], 1024, scope='gated_deconv1/')
+    output = gated_deconv(output, down_outputs[5], 1024, scope='gated_deconv1/')
     print("========After the first gated layer==============",output.get_shape())
-    
-
-    output = tf.contrib.layers.conv2d_transpose(    
-        output, 1024, deconv_size, scope='deconv1', stride = 2, padding='SAME',
-        activation_fn=prelu, normalizer_fn=tf.contrib.layers.batch_norm, 
-        normalizer_params={'scale': True})
+    output = gated_deconv(output, down_outputs[4], 512, scope='gated_deconv2/')
+    print("========After the 2nd gated layer==============",output.get_shape())
+    output = gated_deconv(output, down_outputs[3], 256, scope='gated_deconv3/')
     print(output.get_shape())
-    output = tf.contrib.layers.conv2d_transpose(
-        output, 512, deconv_size, scope='deconv2', stride = 2, padding='SAME',
-        activation_fn=prelu, normalizer_fn=tf.contrib.layers.batch_norm,  
-        normalizer_params={'scale': True})
+    output = gated_deconv(output, down_outputs[2], 128, scope='gated_deconv4/')
     print(output.get_shape())
- 
+    output = gated_deconv(output, down_outputs[1], 64, scope='gated_deconv5/')
     print(output.get_shape())
-    output = tf.contrib.layers.conv2d_transpose(
-        output, 256, deconv_size, scope='deconv3', stride = 2, padding='SAME',
-        activation_fn=prelu, normalizer_fn=tf.contrib.layers.batch_norm, 
-        normalizer_params={'scale': True})
-    print(output.get_shape())
-    output = tf.contrib.layers.conv2d_transpose(
-        output, 128, deconv_size, scope='deconv4', stride = 2, padding='SAME',
-        activation_fn=prelu, normalizer_fn=tf.contrib.layers.batch_norm, 
-        normalizer_params={'scale': True})
-    print(output.get_shape())
-
-    print(output.get_shape())
-    output = tf.contrib.layers.conv2d_transpose(
-        output, 64, deconv_size, scope='deconv5', stride=2, padding='SAME',
-        activation_fn=prelu, normalizer_fn=tf.contrib.layers.batch_norm, 
-        normalizer_params={'scale': True})
-    print(output.get_shape())
+    skip_out = tf.contrib.layers.conv2d(
+        down_outputs[0], 1, conv_size, scope = 'last_conv1', padding='SAME',
+        activation_fn=tf.nn.sigmoid, normalizer_fn=None)
+    skip_out = tf.multiply(down_outputs[0], skip_out)
+    output = tf.concat([output, skip_out], 3) # use concat or add??
     output = tf.contrib.layers.conv2d_transpose(
         output, 1, deconv_size, scope='deconv6', stride=2, padding='SAME',
         activation_fn=tf.nn.sigmoid, normalizer_fn=None)

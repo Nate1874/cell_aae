@@ -94,10 +94,10 @@ class GAN(object):
         fix_s_test = tf.zeros_like(random_s_test)
         self.test_y = tf.cast(self.test_y, tf.float32)
         with tf.variable_scope('Generator', reuse= True) as scope:
-            inter_r = encode_img(self.test_x_r, self.conf.hidden_size)
-            self.test_out = generator(random_s_test, inter_r, self.test_y, self.conf.batch_size)
+            inter_r, test_downs = encode_img(self.test_x_r, self.conf.hidden_size)
+            self.test_out = generator(test_downs, random_s_test, inter_r, self.test_y, self.conf.batch_size)
         with tf.variable_scope('Generator', reuse= True) as scope:
-            self.test_out2 = generator(fix_s_test, inter_r, self.test_y, self.conf.batch_size)
+            self.test_out2 = generator(test_downs, fix_s_test, inter_r, self.test_y, self.conf.batch_size)
         
         print("==================FINAL shape is ")
         print(self.test_out.get_shape())
@@ -189,7 +189,7 @@ class GAN(object):
      #   self.evaluate(data)
 
     def save_image(self, imgs, imgs2, inputs, epoch):
-        imgs_test_folder = os.path.join(self.conf.working_directory, 'imgs_GAN_X')
+        imgs_test_folder = os.path.join(self.conf.working_directory, 'imgs_unet')
         if not os.path.exists(imgs_test_folder):
             os.makedirs(imgs_test_folder)
         for k in range(self.conf.batch_size):
