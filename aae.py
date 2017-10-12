@@ -85,17 +85,17 @@ class GAN(object):
         # build the model for the final conditional generation
         
         self.dis_loss= self.d_loss_fake+self.d_loss_real
-        self.gen_loss= self.rec_loss + self.g_loss*self.conf.gamma_gen
-
+    #    self.gen_loss= self.rec_loss + self.g_loss*self.conf.gamma_gen
+        self.gen_loss = self.g_loss
         self.test_x_r = tf.placeholder(tf.float32,[None, self.conf.height, self.conf.width, 2])
         self.test_y = tf.placeholder(tf.int32,[None,self.conf.n_class])
    #     self.test_label = tf.placeholder(tf.float32,[None, self.conf.height, self.conf.width, 3])
-        random_s_test= tf.random_normal([self.conf.batch_size,self.conf.hidden_size])
-        fix_s_test = tf.zeros_like(random_s_test)
+        self.random_s_test= tf.random_normal([self.conf.batch_size,self.conf.hidden_size])
+        fix_s_test = tf.zeros_like(self.random_s_test)
         self.test_y = tf.cast(self.test_y, tf.float32)
         with tf.variable_scope('Generator', reuse= True) as scope:
             inter_r, test_downs = encode_img(self.test_x_r, self.conf.hidden_size)
-            self.test_out = generator(test_downs, random_s_test, inter_r, self.test_y, self.conf.batch_size)
+            self.test_out = generator(test_downs, self.random_s_test, inter_r, self.test_y, self.conf.batch_size)
         with tf.variable_scope('Generator', reuse= True) as scope:
             self.test_out2 = generator(test_downs, fix_s_test, inter_r, self.test_y, self.conf.batch_size)
         
@@ -189,7 +189,7 @@ class GAN(object):
      #   self.evaluate(data)
 
     def save_image(self, imgs, imgs2, inputs, epoch):
-        imgs_test_folder = os.path.join(self.conf.working_directory, 'imgs_unet')
+        imgs_test_folder = os.path.join(self.conf.working_directory, 'imgs_unet_no_rec')
         if not os.path.exists(imgs_test_folder):
             os.makedirs(imgs_test_folder)
         for k in range(self.conf.batch_size):
@@ -226,34 +226,36 @@ class GAN(object):
     
     def evaluate(self, data):        
      #   data = data_reader()
+        print("Now start Testing set evaluation ==============================")
         pbar = ProgressBar()
-        imgs_original_folder = os.path.join(self.conf.working_directory, 'imgs_original_parallel')
+        imgs_original_folder = os.path.join(self.conf.working_directory, 'imgs_unet_test')
         if not os.path.exists(imgs_original_folder):
             os.makedirs(imgs_original_folder)
-        imgs_test_folder = os.path.join(self.conf.working_directory, 'imgs_test_parallel')
+        imgs_test_folder = os.path.join(self.conf.working_directory, 'imgs_unet_test')
         if not os.path.exists(imgs_test_folder):
             os.makedirs(imgs_test_folder)
         for i in pbar(range(self.conf.max_test_epoch)):
             x, y, r = data.next_test_batch(self.conf.batch_size)
             x_extracted = data.extract(x)
-     #       print("x==============================", x.shape)
-     #       print("x_ex============================", x_extracted.shape)
             y_label  = np.argmax(y, axis= 1)
             for j in range (self.conf.max_generated_imgs):
-                output_test, summary = self.sess.run([self.test_out, self.test_summary], feed_dict={self.test_input: x_extracted, self.test_r: r,  self.test_y: y, self.test_label: x})
+                output_test = self.sess.run(self.test_out, feed_dict={self.test_x_r: x_extracted,  self.test_y: y})
                 for k in range(output_test.shape[0]):                    
                     # res = np.ones([self.conf.height, self.conf.width*3 +4, 3])
                     # res[:,0:self.conf.width,:]= x[k,:,:,:]
                     # res[:,self.conf.width+2:self.conf.width*2+2,(0,2)] = x_extracted[k,:,:,:]
                     # res[:,self.conf.width+2:self.conf.width*2+2,1] = 0
                     # res[:,self.conf.width*2+4:, :] = output_test[k,:,:,:]
+                #    print("============================",output_test[k,:,:,:].shape)
                     temp_test_dir = os.path.join(imgs_test_folder, 'epoch_%d_#img_%d'%(i,k))
                     if not os.path.exists(temp_test_dir):
                         os.makedirs(temp_test_dir)
                     imsave(os.path.join(imgs_original_folder,'epoch_%d_#img_%d_cls_%d.png') %(i,k,y_label[k]),
                         x[k,:,:,:])
+                    res = np.zeros((self.conf.height, self.conf.height, 3))
+                    res[:,:,1] = output_test[k,:,:,0]
                     imsave(os.path.join(temp_test_dir,'imgs_%d.png') %j,
-                        output_test[k,:,:,:])
+                        res)
            #     self.save_summary(summary, i*10*50+k*50+j)
         print("Evaluation images generated！==============================")
 
