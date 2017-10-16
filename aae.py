@@ -28,15 +28,16 @@ class GAN(object):
         print("Finishing building network=================")
     
     def configure_networks(self):
+        self.global_step  = tf.Variable(0, trainable=False)
         self.build_network()
         variables = tf.trainable_variables()
 
         self.var_gen = [var for var in variables if var.name.startswith('Generator')]
         self.var_disc = [var for var in variables if var.name.startswith('Discriminator')]
-
+        
         self.train_disc = tf.contrib.layers.optimize_loss(self.dis_loss, tf.contrib.framework.get_or_create_global_step(), 
             learning_rate=self.conf.learning_rate, optimizer='Adam', variables=self.var_disc, update_ops=[])
-        self.train_gen = tf.contrib.layers.optimize_loss(self.gen_loss, tf.contrib.framework.get_or_create_global_step(), 
+        self.train_gen = tf.contrib.layers.optimize_loss(self.gen_loss, global_step = self.global_step, 
             learning_rate=self.conf.learning_rate, optimizer='Adam', variables=self.var_gen, update_ops=[])    
   #      self.sess = tf.Session()
         self.sess.run(tf.global_variables_initializer())
@@ -55,7 +56,7 @@ class GAN(object):
         self.input_x = tf.placeholder(tf.float32,[None, self.conf.height, self.conf.width, 3])
         self.input_x_r = tf.placeholder(tf.float32,[None, self.conf.height, self.conf.width, 2])
         self.input_y= tf.cast(self.input_y, tf.float32)
-
+      #  self.iter_number = tf.placeholder(tf.int32)
         print("Start building the generator of the ConGAN========================")
         #build the conditional auto encoder
         with tf.variable_scope('Generator') as scope:
@@ -86,7 +87,8 @@ class GAN(object):
         
         self.dis_loss= self.d_loss_fake+self.d_loss_real
     #    self.gen_loss= self.rec_loss + self.g_loss*self.conf.gamma_gen
-        self.gen_loss = self.g_loss
+        self.gen_loss= self.rec_loss*self.get_coefficient(self.global_step) + self.g_loss*self.conf.gamma_gen
+    #    self.gen_loss = self.g_loss
         self.test_x_r = tf.placeholder(tf.float32,[None, self.conf.height, self.conf.width, 2])
         self.test_y = tf.placeholder(tf.int32,[None,self.conf.n_class])
    #     self.test_label = tf.placeholder(tf.float32,[None, self.conf.height, self.conf.width, 3])
@@ -108,6 +110,7 @@ class GAN(object):
     def config_summary(self):
         summarys = []                      
         summarys.append(tf.summary.scalar('/Rec_loss', self.rec_loss))
+        summarys.append(tf.summary.scalar('/Global_step', self.global_step))
         summarys.append(tf.summary.scalar('/d_loss_real', self.d_loss_real))
         summarys.append(tf.summary.scalar('/d_loss_fake', self.d_loss_fake))
         summarys.append(tf.summary.scalar('/d_loss', self.dis_loss))
@@ -130,6 +133,12 @@ class GAN(object):
     #     summarys.append(tf.summary.image('test_out', self.test_out, max_outputs = 10))
     #     summary = tf.summary.merge(summarys)
     #     return summary
+    
+    def get_coefficient(self, iter_number):
+        boundaries= [50000,150000]
+        values = [0.0, 0.5, 1.0]
+        rate = tf.train.piecewise_constant(iter_number, boundaries, values)
+        return rate
         
 
     def get_bce_loss(self, output_tensor, target_tensor, epsilon=1e-10):
@@ -189,7 +198,7 @@ class GAN(object):
      #   self.evaluate(data)
 
     def save_image(self, imgs, imgs2, inputs, epoch):
-        imgs_test_folder = os.path.join(self.conf.working_directory, 'imgs_unet_no_rec')
+        imgs_test_folder = os.path.join(self.conf.working_directory, 'imgs_unet_increase')
         if not os.path.exists(imgs_test_folder):
             os.makedirs(imgs_test_folder)
         for k in range(self.conf.batch_size):
