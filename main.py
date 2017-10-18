@@ -30,9 +30,9 @@ def configure():
  #   flags.DEFINE_string("model_name", 'low_rank', "vanilla or low_rank")
     flags.DEFINE_integer("height", 256, "height of image")
     flags.DEFINE_integer("width", 256, "width of image")
-    flags.DEFINE_string("modeldir", './modeldir_unet_rec_loss_increase', "the model directory")
-    flags.DEFINE_string("logdir", './logdir_unet_dynamic_loss_increase', "the log directory")
-    flags.DEFINE_string("sampledir", './sampledir_unet_dynamic_loss_increase', "the sample directory")
+    flags.DEFINE_string("modeldir", './modeldir_unet_', "the model directory")
+    flags.DEFINE_string("logdir", './logdir_unet_', "the log directory")
+    flags.DEFINE_string("sampledir", './sampledir_unet_', "the sample directory")
     flags.FLAGS.__dict__['__parsed'] = False
     return flags.FLAGS
  
