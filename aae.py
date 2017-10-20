@@ -86,9 +86,9 @@ class GAN(object):
         # build the model for the final conditional generation
         
         self.dis_loss= self.d_loss_fake+self.d_loss_real
-    #    self.gen_loss= self.rec_loss + self.g_loss*self.conf.gamma_gen
-        self.gen_loss= self.rec_loss*self.get_coefficient(self.global_step) + self.g_loss*self.conf.gamma_gen
-    #    self.gen_loss = self.g_loss
+        self.gen_loss= self.rec_loss + self.g_loss*self.conf.gamma_gen
+    #    self.gen_loss= self.rec_loss*self.get_coefficient(self.global_step) + self.g_loss*self.conf.gamma_gen  ## this is for dynamic loss
+    #    self.gen_loss = self.g_loss ### this is for no rec loss
         self.test_x_r = tf.placeholder(tf.float32,[None, self.conf.height, self.conf.width, 2])
         self.test_y = tf.placeholder(tf.int32,[None,self.conf.n_class])
    #     self.test_label = tf.placeholder(tf.float32,[None, self.conf.height, self.conf.width, 3])
@@ -288,47 +288,56 @@ class GAN(object):
         print("generated imgs saved!!!!==========================")
 
 
-    def test(self):
-        return
-        # model.reload(FLAGS.checkpoint)
-        # samples = model.generate_samples()
-        # sigmas = np.logspace(-1.0, 0.0, 10)
-        # lls = []
-        # for sigma in sigmas:
-        #     print("sigma: ", sigma)
-        #     nlls = []
-        #     for i in range(1, 10 + 1):
-        #         X = data.next_test_batch(FLAGS.batch_size)
-        #         nll = parzen_cpu_batch(
-        #             X,
-        #             samples,
-        #             sigma=sigma,
-        #             batch_size=FLAGS.batch_size,
-        #             num_of_samples=10000,
-        #             data_size=12288)
-        #         nlls.extend(nll)
-        #     nlls = np.array(nlls).reshape(1000)  # 1000 valid images
-        #     print("sigma: ", sigma)
-        #     print("ll: %d" % (np.mean(nlls)))
-        #     lls.append(np.mean(nlls))
-        # sigma = sigmas[np.argmax(lls)]
+    def test(self):        
+        print("======Now the parzen window evaluation ============================ ")
+        if self.conf.checkpoint >0:
+            print('=======Now load the model===============')
+            self.reload(self.conf.checkpoint)        
+        else:
+            print("===================We need a model to reload, please provide the checkpoint")
+            return
+        samples = self.generate_samples()
+        sigmas = np.logspace(-1.0, 0.0, 10)
+        lls = []
+        for sigma in sigmas:
+            print("sigma: ", sigma)
+            nlls = []
+            for i in range(1, 10 + 1):
+                X, _, _ = data.next_test_batch(self.conf.batch_size)
+                X = data.extract_label(X)
+                nll = parzen_cpu_batch(
+                    X,
+                    samples,
+                    sigma=sigma,
+                    batch_size=self.conf.batch_size,
+                    num_of_samples=10700,
+                    data_size=65536)
+                nlls.extend(nll)
+            nlls = np.array(nlls).reshape(100)  # 1000 valid images
+            print("sigma: ", sigma)
+            print("ll: %d" % (np.mean(nlls)))
+            lls.append(np.mean(nlls))
+        sigma = sigmas[np.argmax(lls)]
 
-        # nlls = []
-        # data.reset()
-        # for i in range(1, 100 + 1):  # number of test batches = 100
-        #     X = data.next_test_batch(FLAGS.batch_size)
-        #     nll = parzen_cpu_batch(
-        #         X,
-        #         samples,
-        #         sigma=sigma,
-        #         batch_size=FLAGS.batch_size,
-        #         num_of_samples=10000,
-        #         data_size=12288)
-        #     nlls.extend(nll)
-        # nlls = np.array(nlls).reshape(10000)  # 10000 test images
-        # print("sigma: ", sigma)
-        # print("ll: %d" % (np.mean(nlls)))
-        # print("se: %d" % (nlls.std() / np.sqrt(10000)))
+        nlls = []
+        data.reset()
+        for i in range(1, 107 + 1):  # number of test batches = 107
+            X = data.next_test_batch(self.conf.batch_size)
+            X = data.extract_label(X)
+            nll = parzen_cpu_batch(
+                X,
+                samples,
+                sigma=sigma,
+                batch_size=self.conf.batch_size,
+                num_of_samples=10700,
+                data_size=65536)
+            nlls.extend(nll)
+        nlls = np.array(nlls).reshape(1070)  # 10000 test images
+        print("sigma: ", sigma)
+        print("ll: %d" % (np.mean(nlls)))
+        print("se: %d" % (nlls.std() / np.sqrt(1070)))
+        return
+
 
     def reload(self, epoch):
         checkpoint_path = os.path.join(
@@ -360,9 +369,15 @@ class GAN(object):
         return np.mean(log_marginal_estimate)
 
     def generate_samples(self):
+        data= data_reader()
         samples = []
-        for i in range(100): # generate 100*100 samples
-            samples.extend(self.sess.run(self.sample_out))
+        for k in range(self.conf.max_test_epoch): #generate 10*1070 images
+            x, y, r =data.next_test_batch(self.conf.batch_size)
+            x_extracted = data.extract(x)
+            for i in range(10):
+                output_test = self.sess.run(self.test_out, feed_dict={self.test_x_r: x_extracted,  self.test_y: y})
+                samples.extend(output_test)
+
         samples = np.array(samples)
         print (samples.shape)
         return samples

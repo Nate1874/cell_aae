@@ -48,6 +48,9 @@ class data_reader:
     def extract(self, imgs):
         return imgs[:,:,:,(0,2)]
 
+    def extract_label(self, imgs):
+        return imgs[:,:,:1]
+
     def get_next_h5(self):
         prev_idx =self.image_index
         self.image_index = self.image_index +10
