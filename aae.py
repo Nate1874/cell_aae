@@ -297,6 +297,11 @@ class GAN(object):
             print("===================We need a model to reload, please provide the checkpoint")
             return
         samples = self.generate_samples()
+        np.savez('samples',samples)
+        print('save done')
+        np.random.shuffle(samples)
+        print(samples.shape)
+        data = data_reader()
         sigmas = np.logspace(-1.0, 0.0, 10)
         lls = []
         for sigma in sigmas:
@@ -305,6 +310,8 @@ class GAN(object):
             for i in range(1, 10 + 1):
                 X, _, _ = data.next_test_batch(self.conf.batch_size)
                 X = data.extract_label(X)
+            #    print("===============", i)
+           #     print(X.shape, "========================")
                 nll = parzen_cpu_batch(
                     X,
                     samples,
@@ -314,15 +321,19 @@ class GAN(object):
                     data_size=65536)
                 nlls.extend(nll)
             nlls = np.array(nlls).reshape(100)  # 1000 valid images
-            print("sigma: ", sigma)
+        #    print("sigma: ", sigma)
             print("ll: %d" % (np.mean(nlls)))
             lls.append(np.mean(nlls))
+            data.reset()
         sigma = sigmas[np.argmax(lls)]
 
-        nlls = []
         data.reset()
+     #   sigma = 0.1
+        nlls = []
+      
         for i in range(1, 107 + 1):  # number of test batches = 107
-            X = data.next_test_batch(self.conf.batch_size)
+            print("===============", i)
+            X, _, _  = data.next_test_batch(self.conf.batch_size)
             X = data.extract_label(X)
             nll = parzen_cpu_batch(
                 X,
@@ -376,13 +387,23 @@ class GAN(object):
             x_extracted = data.extract(x)
             for i in range(10):
                 output_test = self.sess.run(self.test_out, feed_dict={self.test_x_r: x_extracted,  self.test_y: y})
+            #    self.save_image_parzen_window(output_test, k*10+i)
+            #    print("output shape is ===============", output_test.shape)
+
                 samples.extend(output_test)
 
         samples = np.array(samples)
         print (samples.shape)
         return samples
 
-
+    def save_image_parzen_window(self, imgs, epoch):
+        imgs_test_folder = os.path.join(self.conf.working_directory, 'imgs_unet_prazen_windows')
+        if not os.path.exists(imgs_test_folder):
+            os.makedirs(imgs_test_folder)
+        for k in range(self.conf.batch_size):
+            temp_test_dir= os.path.join(imgs_test_folder, 'epoch_%d_#img_%d.png'%(epoch,k))
+            imsave(temp_test_dir, imgs[k,:,:,0])
+        print("Parzen windows images generated！==============================")   
 
         
 

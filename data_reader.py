@@ -43,13 +43,13 @@ class data_reader:
 
 
     def reset(self):
-        self.test_idx = 0
+        self.test_idx = 5000
         
     def extract(self, imgs):
         return imgs[:,:,:,(0,2)]
 
     def extract_label(self, imgs):
-        return imgs[:,:,:1]
+        return imgs[:,:,:,1]
 
     def get_next_h5(self):
         prev_idx =self.image_index
