@@ -296,9 +296,20 @@ class GAN(object):
         else:
             print("===================We need a model to reload, please provide the checkpoint")
             return
-        samples = self.generate_samples()
-        np.savez('samples',samples)
+
+        # Alpha actinin   Alpha tubulin   Beta actin   Desmoplakin  Fibrillarin 
+        # Lamin B1   Myosin IIB  Sec61 beta  Tom20  ZO1
+        cls_to_evaluate = 9 #which class
+        cls_name = 'ZO1' 
+        print(cls_name,"======",cls_to_evaluate)
+
+
+
+        samples, labels = self.generate_samples()
+        np.savez('samples',a = samples, b = labels)
         print('save done')
+        
+
         np.random.shuffle(samples)
         print(samples.shape)
         data = data_reader()
@@ -382,6 +393,7 @@ class GAN(object):
     def generate_samples(self):
         data= data_reader()
         samples = []
+        labels = []
         for k in range(self.conf.max_test_epoch): #generate 10*1070 images
             x, y, r =data.next_test_batch(self.conf.batch_size)
             x_extracted = data.extract(x)
@@ -389,12 +401,12 @@ class GAN(object):
                 output_test = self.sess.run(self.test_out, feed_dict={self.test_x_r: x_extracted,  self.test_y: y})
             #    self.save_image_parzen_window(output_test, k*10+i)
             #    print("output shape is ===============", output_test.shape)
-
                 samples.extend(output_test)
-
+                labels.extend(y)
         samples = np.array(samples)
         print (samples.shape)
-        return samples
+        labels = np.array(labels)
+        return samples, labels
 
     def save_image_parzen_window(self, imgs, epoch):
         imgs_test_folder = os.path.join(self.conf.working_directory, 'imgs_unet_prazen_windows')
